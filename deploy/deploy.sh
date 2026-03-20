@@ -119,6 +119,14 @@ if [ -f deploy/nginx/rate-limit.conf ]; then
     fi
 fi
 
+if [ -f deploy/nginx/bot-filter.conf ]; then
+    if ! diff -q deploy/nginx/bot-filter.conf /etc/nginx/conf.d/bot-filter.conf > /dev/null 2>&1; then
+        sudo /bin/cp deploy/nginx/bot-filter.conf /etc/nginx/conf.d/bot-filter.conf
+        NGINX_CHANGED=true
+        echo "    Updated bot-filter.conf"
+    fi
+fi
+
 if [ -f deploy/nginx/proxy_params ]; then
     if ! diff -q deploy/nginx/proxy_params /etc/nginx/proxy_params > /dev/null 2>&1; then
         sudo /bin/cp deploy/nginx/proxy_params /etc/nginx/proxy_params

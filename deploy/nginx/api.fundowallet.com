@@ -4,6 +4,9 @@
 # If using this file directly in sites-available, add the limit_req_zone
 # directives to /etc/nginx/conf.d/rate-limit.conf instead (see setup script).
 
+# Bot filtering — must be in http context, so placed in a separate conf file.
+# See deploy/nginx/bot-filter.conf
+
 server {
     listen 80;
     server_name api.fundowallet.com;
@@ -32,23 +35,9 @@ server {
     add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    # ── Bot & scanner filtering ───────────────────────────────
-    # Block common vulnerability scanners and bad bots
-    if ($http_user_agent ~* (
-        nikto|sqlmap|nmap|masscan|zgrab|nuclei|gobuster|dirbuster|
-        wpscan|joomla|drupal|wpengine|semrush|ahref|mj12bot|
-        dotbot|petalbot|bytespider|gptbot|ccbot|
-        python-requests|curl/|wget/|httpie|
-        libwww-perl|mechanize|scrapy
-    )) {
+    # ── Bot & scanner filtering (via map in bot-filter.conf) ──
+    if ($bad_bot) {
         return 403;
-    }
-
-    # Block requests to common exploit paths
-    location ~* ^/(wp-admin|wp-login|wordpress|admin/config\.php|
-                   admin/ajax\.php|\.env|\.git|phpinfo|
-                   cgi-bin|\.php$|shell|eval-stdin) {
-        return 404;
     }
 
     # Block empty or missing Host header
@@ -56,10 +45,25 @@ server {
         return 444;
     }
 
-    # ── Rate limiting ─────────────────────────────────────────
-    # General API: 30 requests/second per IP
-    # Auth endpoints: 5 requests/second per IP (brute-force protection)
+    # ── Block exploit paths ───────────────────────────────────
+    location ~* ^/(wp-admin|wp-login|wp-content|wp-includes|wordpress) {
+        return 404;
+    }
+    location ~* ^/(admin|phpmyadmin|pma|myadmin|mysql|phpinfo) {
+        return 404;
+    }
+    location ~* \.(php|asp|aspx|jsp|cgi)$ {
+        return 404;
+    }
+    location ~* ^/(\.env|\.git|\.htaccess|\.htpasswd) {
+        return 404;
+    }
+    location ~* ^/(shell|eval-stdin|cgi-bin) {
+        return 404;
+    }
 
+    # ── Rate limiting ─────────────────────────────────────────
+    # Auth endpoints: 5 requests/second per IP (brute-force protection)
     location /auth/login {
         limit_req zone=auth_strict burst=3 nodelay;
         limit_req_status 429;
@@ -76,7 +80,7 @@ server {
         include /etc/nginx/proxy_params;
     }
 
-    # ── Main proxy ────────────────────────────────────────────
+    # ── Main proxy: 30 requests/second per IP ─────────────────
     location / {
         limit_req zone=api_general burst=20 nodelay;
         limit_req_status 429;
