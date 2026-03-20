@@ -4,6 +4,10 @@ Runs as an asyncio background task within the FastAPI application lifespan.
 Periodically polls pending payments from ZB Bank for each registered school,
 stores new transactions, and auto-reconciles them against outstanding invoices.
 
+The poller waits for an ``asyncio.Event`` (``app_ready``) to be set by the
+lifespan handler, ensuring it only starts polling **after** the application
+(including migrations) has fully started.
+
 Controlled by two settings:
 - ``ZB_BANK_ENABLED``: Master switch (default ``False``).
 - ``ZB_BANK_POLL_INTERVAL_SECONDS``: Polling frequency (default 300s / 5 min).
@@ -21,6 +25,9 @@ from app.modules.zb_bank.client import ZBBankClient
 from app.modules.zb_bank.service import ZBBankService
 
 logger = get_logger(__name__)
+
+# Set by the lifespan handler once the app is fully started.
+app_ready = asyncio.Event()
 
 
 async def _get_all_school_ids() -> list[str]:
@@ -93,6 +100,11 @@ async def start_zb_bank_poller() -> None:
         return
 
     interval = settings.ZB_BANK_POLL_INTERVAL_SECONDS
+
+    # Wait until the lifespan handler signals the app is fully ready.
+    logger.info("zb_bank_poller_waiting_for_app_ready")
+    await app_ready.wait()
+
     logger.info(
         "zb_bank_poller_started",
         interval_seconds=interval,

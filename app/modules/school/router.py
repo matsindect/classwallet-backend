@@ -62,7 +62,7 @@ async def update_school(
     Returns:
         The updated ``SchoolResponse``.
     """
-    enforce(current_user.role, "manage_school")
+    enforce(current_user, "school.update")
     school = await service.update_school(
         current_user.school_id,
         body.model_dump(exclude_unset=True),
@@ -87,9 +87,9 @@ async def list_users(
     Returns:
         A list of ``SchoolUserResponse`` objects, newest first.
     """
-    enforce(current_user.role, "manage_users")
+    enforce(current_user, "users.read")
     users = await auth_service.get_school_users(current_user.school_id)
-    return [SchoolUserResponse.model_validate(u) for u in users]
+    return [SchoolUserResponse.from_user(u) for u in users]
 
 
 @router.post("/users", response_model=SchoolUserResponse, status_code=201)
@@ -111,17 +111,17 @@ async def create_user(
     Returns:
         The newly created ``SchoolUserResponse``.
     """
-    enforce(current_user.role, "manage_users")
+    enforce(current_user, "users.create")
     user = await auth_service.create_school_user(
         school_id=current_user.school_id,
         email=body.email,
         first_name=body.firstName,
         last_name=body.lastName,
-        role=body.role,
+        role_id=body.roleId,
         phone=body.phone,
         actor_id=current_user.id,
     )
-    return SchoolUserResponse.model_validate(user)
+    return SchoolUserResponse.from_user(user)
 
 
 @router.patch("/users/{user_id}", response_model=SchoolUserResponse)
@@ -146,14 +146,16 @@ async def update_user(
     Returns:
         The updated ``SchoolUserResponse``.
     """
-    enforce(current_user.role, "manage_users")
+    enforce(current_user, "users.update")
     update_data = {}
     raw = body.model_dump(exclude_unset=True)
     if "firstName" in raw:
         update_data["first_name"] = raw["firstName"]
     if "lastName" in raw:
         update_data["last_name"] = raw["lastName"]
-    for k in ("phone", "role", "is_active"):
+    if "roleId" in raw:
+        update_data["role_id"] = raw["roleId"]
+    for k in ("phone", "is_active"):
         if k in raw:
             update_data[k] = raw[k]
 
@@ -163,4 +165,4 @@ async def update_user(
         actor_id=current_user.id,
         school_id=current_user.school_id,
     )
-    return SchoolUserResponse.model_validate(user)
+    return SchoolUserResponse.from_user(user)

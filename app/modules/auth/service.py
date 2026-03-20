@@ -106,7 +106,7 @@ class AuthService:
         email: str,
         first_name: str,
         last_name: str,
-        role: str,
+        role_id: str,
         phone: str | None,
         actor_id: str,
     ) -> User:
@@ -120,7 +120,7 @@ class AuthService:
             email: Unique email for the new user.
             first_name: User's first name.
             last_name: User's last name.
-            role: Role to assign (ADMIN, FINANCE, or STAFF).
+            role_id: UUID of the role to assign.
             phone: Optional phone number.
             actor_id: UUID of the user performing the action (for audit).
 
@@ -141,7 +141,7 @@ class AuthService:
             email=email,
             first_name=first_name,
             last_name=last_name,
-            role=role,
+            role_id=role_id,
             phone=phone,
             password_hash=hash_password("changeme123"),
         )
@@ -154,7 +154,9 @@ class AuthService:
             entity="user",
             entity_id=user.id,
         )
-        return user
+
+        # Re-fetch to get role relationship loaded
+        return await self.repo.get_by_id(user.id)  # type: ignore[return-value]
 
     async def update_school_user(
         self, user_id: str, data: dict, actor_id: str, school_id: str
@@ -184,4 +186,6 @@ class AuthService:
             entity="user",
             entity_id=user_id,
         )
-        return user
+
+        # Re-fetch to get role relationship loaded
+        return await self.repo.get_by_id(user_id)  # type: ignore[return-value]

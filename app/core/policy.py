@@ -1,66 +1,63 @@
 """Role-based access control (RBAC) policy layer.
 
-Defines the ``UserRole`` enum, a static permission matrix
-(``PERMISSION_MAP``) that maps action strings to the set of roles that may
-perform them, and an ``enforce()`` gate function that raises
-``ForbiddenError`` when a role is not permitted to perform a given action.
+Provides the ``enforce()`` gate function that checks whether the current
+user has the required permission.  Permissions are loaded from the
+database into ``UserResponse.permissions`` during authentication, so
+no database access is needed at authorisation time.
 
-Injected into routes that need authorization beyond authentication.
+Supports granular ``resource.action`` permissions with wildcards:
+
+* ``students.create`` — exact match
+* ``students.*`` — matches any action on the ``students`` resource
+* ``*`` — matches everything (super admin)
 """
 
-import enum
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from app.core.errors import ForbiddenError
 
+if TYPE_CHECKING:
+    from app.modules.auth.schemas import UserResponse
 
-class UserRole(enum.StrEnum):
-    """Enumeration of user roles within the ClassWallet system.
 
-    Attributes:
-        ADMIN: Full system administrator with unrestricted access.
-        FINANCE: Finance staff who can manage fees, payments, and reports.
-        STAFF: General school staff with read-oriented access to students
-            and payments.
+def _has_permission(user_permissions: list[str], required: str) -> bool:
+    """Check if any user permission satisfies the required permission.
+
+    Matching rules (checked in order):
+    1. Global wildcard ``*`` grants everything.
+    2. Resource wildcard ``resource.*`` grants any action on that resource.
+    3. Exact match ``resource.action``.
     """
-
-    ADMIN = "ADMIN"
-    FINANCE = "FINANCE"
-    STAFF = "STAFF"
-
-
-# Permission matrix: action -> allowed roles
-PERMISSION_MAP: dict[str, set[UserRole]] = {
-    "manage_users": {UserRole.ADMIN},
-    "manage_school": {UserRole.ADMIN},
-    "manage_fees": {UserRole.ADMIN, UserRole.FINANCE},
-    "manage_payments": {UserRole.ADMIN, UserRole.FINANCE},
-    "view_payments": {UserRole.ADMIN, UserRole.FINANCE, UserRole.STAFF},
-    "manage_students": {UserRole.ADMIN, UserRole.STAFF},
-    "view_students": {UserRole.ADMIN, UserRole.FINANCE, UserRole.STAFF},
-    "manage_reminders": {UserRole.ADMIN, UserRole.FINANCE},
-    "view_reports": {UserRole.ADMIN, UserRole.FINANCE},
-    "view_audit": {UserRole.ADMIN},
-}
+    for perm in user_permissions:
+        if perm == "*":
+            return True
+        if perm == required:
+            return True
+        # resource wildcard: "students.*" matches "students.create"
+        if perm.endswith(".*"):
+            resource = perm[:-2]  # "students"
+            if required.startswith(resource + "."):
+                return True
+    return False
 
 
-def enforce(role: UserRole | str, action: str) -> None:
-    """Assert that a role is permitted to perform an action.
+def enforce(user: UserResponse, action: str) -> None:
+    """Assert that the authenticated user has a specific permission.
 
-    Looks up the action in ``PERMISSION_MAP`` and raises ``ForbiddenError``
-    if the role is not in the allowed set.
+    Checks the ``permissions`` list pre-loaded on the user response
+    object using wildcard-aware matching.  Raises ``ForbiddenError``
+    if the permission is not satisfied.
 
     Args:
-        role: The user's role, either as a ``UserRole`` enum member or its
-            string value.
-        action: The action key to check (must exist in ``PERMISSION_MAP``).
+        user: The authenticated user with pre-loaded permissions.
+        action: The permission to check (e.g. ``"students.create"``).
 
     Raises:
-        ForbiddenError: If the role is not authorised for the action.
-        ValueError: If ``role`` is a string that does not match any
-            ``UserRole`` member.
+        ForbiddenError: If the user does not have the required permission.
     """
-    if isinstance(role, str):
-        role = UserRole(role)
-    allowed = PERMISSION_MAP.get(action, set())
-    if role not in allowed:
-        raise ForbiddenError(message=f"Role '{role.value}' is not allowed to perform '{action}'")
+    if not _has_permission(user.permissions, action):
+        raise ForbiddenError(
+            message=f"Role '{user.role}' is not allowed to perform '{action}'"
+        )

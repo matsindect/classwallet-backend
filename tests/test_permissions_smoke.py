@@ -11,17 +11,44 @@ import uuid
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.modules.auth.models import User
+from app.modules.rbac.models import Permission, Role, RolePermission
 from tests.conftest import SCHOOL_ID, TestSessionLocal, app
+
+# STAFF permissions: limited student and payment access
+_STAFF_PERMISSIONS = [
+    "payments.read",
+    "students.create", "students.read", "students.update", "students.import",
+]
 
 
 @pytest_asyncio.fixture
 async def staff_token(seed_data):
-    """Create a STAFF user and return their auth token."""
+    """Create a STAFF role and user, then return their auth token."""
     staff_id = str(uuid.uuid4())
+    staff_role_id = str(uuid.uuid4())
     async with TestSessionLocal() as session:
+        # Create STAFF role
+        staff_role = Role(
+            id=staff_role_id,
+            name="STAFF",
+            slug="staff",
+            is_system=True,
+        )
+        session.add(staff_role)
+        await session.flush()
+
+        # Assign subset of permissions
+        for action in _STAFF_PERMISSIONS:
+            result = await session.execute(
+                select(Permission).where(Permission.action == action)
+            )
+            perm = result.scalar_one()
+            session.add(RolePermission(role_id=staff_role_id, permission_id=perm.id))
+
         user = User(
             id=staff_id,
             school_id=SCHOOL_ID,
@@ -29,7 +56,7 @@ async def staff_token(seed_data):
             first_name="Staff",
             last_name="User",
             password_hash=hash_password("password123"),
-            role="STAFF",
+            role_id=staff_role_id,
         )
         session.add(user)
         await session.commit()

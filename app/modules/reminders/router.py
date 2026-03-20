@@ -38,7 +38,7 @@ async def list_configs(
     Returns:
         A list of ReminderConfigResponse objects.
     """
-    enforce(current_user.role, "manage_reminders")
+    enforce(current_user, "reminders.read")
     configs = await service.list_configs(current_user.school_id)
     return [ReminderConfigResponse.model_validate(c) for c in configs]
 
@@ -61,7 +61,7 @@ async def create_config(
     Returns:
         The newly created ReminderConfigResponse.
     """
-    enforce(current_user.role, "manage_reminders")
+    enforce(current_user, "reminders.create")
     config = await service.create_config(
         school_id=current_user.school_id,
         data=body.model_dump(exclude_unset=True),
@@ -93,7 +93,7 @@ async def update_config(
     Raises:
         NotFoundError: If no config with the given ID exists.
     """
-    enforce(current_user.role, "manage_reminders")
+    enforce(current_user, "reminders.update")
     config = await service.update_config(
         config_id=config_id,
         data=body.model_dump(exclude_unset=True),
@@ -119,6 +119,6 @@ async def list_history(
     Returns:
         A list of ReminderHistoryResponse objects.
     """
-    enforce(current_user.role, "manage_reminders")
+    enforce(current_user, "reminders.read")
     history = await service.list_history(current_user.school_id)
     return [ReminderHistoryResponse.model_validate(h) for h in history]

@@ -16,6 +16,7 @@ from app.modules.fees.models import FeeStructure, StudentInvoice  # noqa: F401
 from app.modules.payments.models import Payment  # noqa: F401
 from app.modules.reminders.models import ReminderConfig, ReminderHistory  # noqa: F401
 from app.modules.audit.models import AuditLog  # noqa: F401
+from app.modules.rbac.models import Permission, Role, RolePermission  # noqa: F401
 from app.modules.zb_bank.models import ZBTransaction, ZBReconciliationRun  # noqa: F401
 
 config = context.config

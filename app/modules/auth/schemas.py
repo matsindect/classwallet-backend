@@ -34,24 +34,49 @@ class UserResponse(BaseModel):
         phone: Optional phone number.
         first_name: User's first name.
         last_name: User's last name.
-        role: User role (ADMIN, FINANCE, or STAFF).
+        role: Role display name (e.g. ``"ADMIN"``).
+        role_id: UUID of the assigned role.
+        permissions: List of permission action strings.
         is_active: Whether the account is enabled.
         created_at: Account creation timestamp.
         updated_at: Last modification timestamp.
     """
 
     id: str
-    school_id: str
+    school_id: str | None = None
     email: str
     phone: str | None = None
     first_name: str
     last_name: str
     role: str
+    role_id: str
+    permissions: list[str] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_user(cls, user) -> "UserResponse":
+        """Build a UserResponse from a User ORM instance with loaded role."""
+        permissions = [
+            rp.permission.action for rp in user.role_obj.role_permissions
+        ]
+        return cls(
+            id=user.id,
+            school_id=user.school_id,
+            email=user.email,
+            phone=user.phone,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role_obj.name,
+            role_id=user.role_id,
+            permissions=permissions,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
 
 
 class LoginResponse(BaseModel):
