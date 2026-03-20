@@ -26,9 +26,6 @@ from app.modules.zb_bank.service import ZBBankService
 
 logger = get_logger(__name__)
 
-# Set by the lifespan handler once the app is fully started.
-app_ready = asyncio.Event()
-
 
 async def _get_all_school_ids() -> list[str]:
     """Fetch all school IDs from the database.
@@ -100,11 +97,6 @@ async def start_zb_bank_poller() -> None:
         return
 
     interval = settings.ZB_BANK_POLL_INTERVAL_SECONDS
-
-    # Wait until the lifespan handler signals the app is fully ready.
-    logger.info("zb_bank_poller_waiting_for_app_ready")
-    await app_ready.wait()
-
     logger.info(
         "zb_bank_poller_started",
         interval_seconds=interval,

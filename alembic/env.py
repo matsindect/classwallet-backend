@@ -63,6 +63,13 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    # When called programmatically from the app lifespan, a connection
+    # is passed via config attributes to avoid creating a second engine.
+    connectable = config.attributes.get("connection")
+    if connectable is not None:
+        do_run_migrations(connectable)
+        return
+
     asyncio.run(run_async_migrations())
 
 
