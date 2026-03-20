@@ -1,0 +1,272 @@
+# ============================================================
+# Class Wallet Backend — CI/CD Pipeline (dev branch)
+# ============================================================
+# Triggers:  Only when a PR is merged into `dev`
+# Scope:     Only when application/infrastructure files changed
+# Deploys:   Over SSH with passphrase-protected private key
+# ============================================================
+#
+# Required GitHub Secrets:
+#   SSH_HOST              — Target server IP or hostname
+#   SSH_USER              — SSH username on the target server
+#   SSH_PRIVATE_KEY       — Full SSH private key (PEM format)
+#   SSH_KEY_PASSPHRASE    — Passphrase for the SSH private key
+#   SSH_KNOWN_HOSTS       — Output of `ssh-keyscan <host>`
+#   APP_DIR               — Deployment directory (e.g. /opt/class-wallet-backend)
+#   ENV_FILE_CONTENT      — Full contents of the production .env file
+#
+# Required GitHub Variables (non-sensitive):
+#   PYTHON_VERSION        — Python version to use (default: 3.11)
+# ============================================================
+
+name: Deploy to Dev
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+    paths:
+      # Python application code
+      - "app/**"
+      - "scripts/**"
+      - "tests/**"
+      # Database migrations
+      - "alembic/**"
+      - "alembic.ini"
+      # Dependencies
+      - "pyproject.toml"
+      # Docker / infrastructure
+      - "Dockerfile"
+      - "docker-compose*.yml"
+      - ".dockerignore"
+      # Deployment scripts
+      - "deploy/**"
+      # This workflow itself
+      - ".github/workflows/deploy-dev.yml"
+
+# Cancel any in-flight runs for the same PR
+concurrency:
+  group: deploy-dev-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # Gate: only proceed if the PR was actually merged
+  # ──────────────────────────────────────────────────────────
+  check-merge:
+    name: Verify PR merged
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      should_deploy: ${{ steps.gate.outputs.deploy }}
+    steps:
+      - id: gate
+        run: echo "deploy=true" >> "$GITHUB_OUTPUT"
+
+  # ──────────────────────────────────────────────────────────
+  # Stage 1: Code quality — lint, format, static analysis
+  # ──────────────────────────────────────────────────────────
+  quality:
+    name: Code Quality
+    needs: check-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.11' }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint with ruff
+        run: ruff check app/ tests/
+
+      - name: Check formatting with black
+        run: black --check app/ tests/
+
+  # ──────────────────────────────────────────────────────────
+  # Stage 2: Tests
+  # ──────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    needs: check-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.11' }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest -v --tb=short
+        env:
+          APP_ENV: test
+          DATABASE_URL: "sqlite+aiosqlite:///./test_class_wallet.db"
+          JWT_SECRET_KEY: "ci-test-secret-not-for-production"
+
+  # ──────────────────────────────────────────────────────────
+  # Stage 3: Security scan
+  # ──────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    needs: check-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.11' }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install bandit safety
+
+      - name: Run bandit (security linter)
+        run: bandit -r app/ -x tests/ -ll --format json --output bandit-report.json || true
+
+      - name: Check bandit results
+        run: bandit -r app/ -x tests/ -ll
+
+      - name: Check dependencies for known vulnerabilities
+        run: pip install pip-audit && pip-audit
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────
+  # Stage 4: Docker build validation
+  # ──────────────────────────────────────────────────────────
+  docker-validate:
+    name: Docker Build Validation
+    needs: check-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.prod.yml
+        run: docker compose -f docker-compose.prod.yml config --quiet
+
+      - name: Build Docker image (test only, not pushed)
+        run: docker build -t class-wallet-backend:ci-${{ github.sha }} .
+
+  # ──────────────────────────────────────────────────────────
+  # Stage 5: Deploy to server via SSH
+  # ──────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Dev Server
+    needs: [quality, test, security, docker-validate]
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- Set up SSH agent with passphrase-protected key ---
+      - name: Configure SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-auth-sock: /tmp/ssh-agent.sock
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh-agent.sock
+
+      - name: Add SSH key with passphrase
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          # Install sshpass + expect for passphrase handling
+          sudo apt-get update -qq && sudo apt-get install -y -qq expect
+
+          # Use expect to add key with passphrase
+          expect <<'EXPECT_SCRIPT'
+          spawn ssh-add /tmp/deploy_key
+          expect "Enter passphrase"
+          send "${{ secrets.SSH_KEY_PASSPHRASE }}\r"
+          expect eof
+          EXPECT_SCRIPT
+
+          # Clean up key file
+          rm -f /tmp/deploy_key
+
+      - name: Configure known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # --- Sync code to server ---
+      - name: Sync repository to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.db' \
+            --exclude='.env' \
+            --exclude='node_modules' \
+            --exclude='.pytest_cache' \
+            --exclude='.ruff_cache' \
+            -e "ssh -o StrictHostKeyChecking=yes" \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.APP_DIR }}/
+
+      # --- Write production .env file (owner-read-only) ---
+      - name: Write production environment file
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "umask 077 && cat > ${{ secrets.APP_DIR }}/.env << 'ENVEOF'
+          ${{ secrets.ENV_FILE_CONTENT }}
+          ENVEOF
+          chmod 600 ${{ secrets.APP_DIR }}/.env
+          chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} ${{ secrets.APP_DIR }}/.env"
+
+      # --- Run deployment ---
+      - name: Execute deployment
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.APP_DIR }} && APP_DIR=${{ secrets.APP_DIR }} bash deploy/deploy.sh"
+
+      # --- Post-deploy verification ---
+      - name: Verify deployment health
+        run: |
+          sleep 10
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "curl -sf http://localhost:8000/health | grep -q ok"
+        timeout-minutes: 2
+
+      - name: Verify API is responding
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "curl -sf http://localhost:8000/docs > /dev/null"
+        continue-on-error: true
+
+      # --- Clean up CI runner SSH artifacts ---
+      - name: Clean up SSH keys on runner
+        if: always()
+        run: |
+          rm -rf ~/.ssh /tmp/deploy_key /tmp/ssh-agent.sock
+          ssh-agent -k 2>/dev/null || true
+
+      # --- Notify on failure ---
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.APP_DIR }} && docker compose -f docker-compose.prod.yml logs --tail=100 app"

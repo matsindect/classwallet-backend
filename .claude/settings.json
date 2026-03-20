@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Read(//usr/local/bin/**)",
+      "Bash(/opt/homebrew/bin/python3 --version)",
+      "Bash(python3.13 --version)",
+      "Bash(/opt/homebrew/bin/python3 -m venv /Users/clivetmatsinde/Desktop/class-wallet-backend/.venv)",
+      "Bash(/Users/clivetmatsinde/Desktop/class-wallet-backend/.venv/bin/pip install:*)",
+      "Read(//opt/homebrew/Cellar/python@3.13/3.13.11/bin/**)",
+      "Bash(python3.13 -m venv /Users/clivetmatsinde/Desktop/class-wallet-backend/.venv)",
+      "Bash(.venv/bin/python -m scripts.seed)",
+      "Bash(.venv/bin/python -m pytest tests/ -v --tb=short)",
+      "Bash(.venv/bin/alembic -c /Users/clivetmatsinde/Desktop/class-wallet-backend/alembic.ini revision --autogenerate -m \"initial schema\")",
+      "Bash(.venv/bin/alembic -c /Users/clivetmatsinde/Desktop/class-wallet-backend/alembic.ini upgrade head)",
+      "Bash(ls -la /private/tmp/claude-501/-Users-clivetmatsinde-Desktop-class-wallet-backend/tasks/*.output)"
+    ]
+  }
+}

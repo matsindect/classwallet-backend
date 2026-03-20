@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Databases (local dev only)
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+test_class_wallet.db
+
+# Linting / formatting caches
+.ruff_cache/
+.mypy_cache/
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Docs (not needed in image)
+docs/
+README.md
+
+# Claude
+.claude/

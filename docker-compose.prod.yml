@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: class-wallet-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - class-wallet-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    container_name: class-wallet-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-class_wallet}
+      POSTGRES_USER: ${POSTGRES_USER:-class_wallet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - class-wallet-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-class_wallet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  class-wallet-net:
+    driver: bridge
