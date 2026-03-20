@@ -5,7 +5,6 @@ environment.  A single ``settings`` instance is created at module level and
 imported throughout the application.
 """
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -27,7 +26,7 @@ class Settings(BaseSettings):
         JWT_ALGORITHM: Algorithm used for JWT encoding (default ``"HS256"``).
         JWT_ACCESS_TOKEN_EXPIRE_MINUTES: Lifetime of an access token in
             minutes.
-        CORS_ORIGINS: List of allowed origins for CORS requests.
+        CORS_ORIGINS: Comma-separated list of allowed origins for CORS.
         MAX_PAGE_SIZE: Upper bound for the ``page_size`` query parameter.
         DEFAULT_PAGE_SIZE: Page size used when the client does not specify one.
     """
@@ -42,22 +41,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
-
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
-        """Accept both JSON array and comma-separated string formats."""
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            # Try JSON first, fall back to comma-separated
-            if v.startswith("["):
-                import json
-
-                return json.loads(v)
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
     MAX_PAGE_SIZE: int = 100
     DEFAULT_PAGE_SIZE: int = 20
@@ -70,6 +54,13 @@ class Settings(BaseSettings):
     ZB_BANK_TIMEOUT_SECONDS: int = 30
     ZB_BANK_POLL_INTERVAL_SECONDS: int = 300  # 5 minutes default
     ZB_BANK_ENABLED: bool = False
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS string into a list of origin URLs."""
+        if not self.CORS_ORIGINS:
+            return []
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
