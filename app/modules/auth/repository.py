@@ -53,9 +53,7 @@ class AuthRepository:
             user_id: UUID string of the user whose tokens should be revoked.
         """
         await self.session.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(token_version=User.token_version + 1)
+            update(User).where(User.id == user_id).values(token_version=User.token_version + 1)
         )
 
     async def get_users_by_school(self, school_id: str) -> list[User]:

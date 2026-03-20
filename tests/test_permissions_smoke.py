@@ -14,7 +14,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app.core.security import hash_password
 from app.modules.auth.models import User
-
 from tests.conftest import SCHOOL_ID, TestSessionLocal, app
 
 

@@ -27,9 +27,9 @@ async def list_payments(
     status: str | None = None,
     from_date: datetime | None = Query(None, alias="from"),
     to_date: datetime | None = Query(None, alias="to"),
-    studentId: str | None = None,
+    studentId: str | None = None,  # noqa: N803
     page: int | None = Query(None),
-    pageSize: int | None = Query(None),
+    pageSize: int | None = Query(None),  # noqa: N803
 ):
     """List payments with optional filters and pagination.
 

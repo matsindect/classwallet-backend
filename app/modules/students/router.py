@@ -32,7 +32,7 @@ async def list_students(
     grade: str | None = None,
     status: str | None = None,
     page: int | None = Query(None),
-    pageSize: int | None = Query(None),
+    pageSize: int | None = Query(None),  # noqa: N803
 ):
     """List students with optional search, grade, and status filters.
 

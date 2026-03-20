@@ -26,6 +26,7 @@ class FeeStructureCreate(BaseModel):
         term: Optional term label.
         due_date: Optional due-date string for invoices.
     """
+
     name: str | None = None
     description: str | None = None
     grade: str | None = None
@@ -42,6 +43,7 @@ class FeeStructureUpdate(BaseModel):
     Only fields that are explicitly set (``exclude_unset=True``) will be
     applied to the record.
     """
+
     name: str | None = None
     description: str | None = None
     grade: str | None = None
@@ -57,6 +59,7 @@ class FeeStructureResponse(BaseModel):
 
     Populated from the ``FeeStructure`` ORM model via ``from_attributes`` mode.
     """
+
     id: str
     school_id: str
     name: str
@@ -80,6 +83,7 @@ class StudentInvoiceResponse(BaseModel):
     Populated from the ``StudentInvoice`` ORM model via ``from_attributes``
     mode. Includes payment tracking fields (amount_paid, balance, status).
     """
+
     id: str
     school_id: str
     student_id: str

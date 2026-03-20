@@ -25,6 +25,7 @@ class AuditLogResponse(BaseModel):
         metadata_json: Optional JSON string with additional context.
         timestamp: When the action occurred.
     """
+
     id: str
     school_id: str
     actor_id: str

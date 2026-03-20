@@ -22,9 +22,7 @@ class ZBBankRepository:
 
     # --- Transactions ---
 
-    async def get_transaction_by_zb_id(
-        self, school_id: str, zb_id: str
-    ) -> ZBTransaction | None:
+    async def get_transaction_by_zb_id(self, school_id: str, zb_id: str) -> ZBTransaction | None:
         """Look up a stored transaction by its ZB Bank ID.
 
         Args:
@@ -74,9 +72,7 @@ class ZBBankRepository:
             A tuple of (list of ZBTransaction objects, total count).
         """
         q = select(ZBTransaction).where(ZBTransaction.school_id == school_id)
-        count_q = select(func.count(ZBTransaction.id)).where(
-            ZBTransaction.school_id == school_id
-        )
+        count_q = select(func.count(ZBTransaction.id)).where(ZBTransaction.school_id == school_id)
 
         if is_matched is not None:
             q = q.where(ZBTransaction.is_matched == is_matched)
@@ -88,9 +84,7 @@ class ZBBankRepository:
         )
         return list(result.scalars().all()), total
 
-    async def get_unmatched_transactions(
-        self, school_id: str
-    ) -> list[ZBTransaction]:
+    async def get_unmatched_transactions(self, school_id: str) -> list[ZBTransaction]:
         """Retrieve all unmatched transactions for a school.
 
         Args:
@@ -107,9 +101,7 @@ class ZBBankRepository:
         )
         return list(result.scalars().all())
 
-    async def update_transaction_match(
-        self, txn_id: str, invoice_id: str, payment_id: str
-    ) -> None:
+    async def update_transaction_match(self, txn_id: str, invoice_id: str, payment_id: str) -> None:
         """Mark a transaction as matched to an invoice and payment.
 
         Args:
@@ -117,9 +109,7 @@ class ZBBankRepository:
             invoice_id: The matched invoice ID.
             payment_id: The created payment ID.
         """
-        result = await self.session.execute(
-            select(ZBTransaction).where(ZBTransaction.id == txn_id)
-        )
+        result = await self.session.execute(select(ZBTransaction).where(ZBTransaction.id == txn_id))
         txn = result.scalar_one_or_none()
         if txn:
             txn.is_matched = True
@@ -129,9 +119,7 @@ class ZBBankRepository:
 
     # --- Reconciliation Runs ---
 
-    async def create_reconciliation_run(
-        self, run: ZBReconciliationRun
-    ) -> ZBReconciliationRun:
+    async def create_reconciliation_run(self, run: ZBReconciliationRun) -> ZBReconciliationRun:
         """Persist a new reconciliation run record.
 
         Args:

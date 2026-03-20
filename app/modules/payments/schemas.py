@@ -31,6 +31,7 @@ class PaymentResponse(BaseModel):
         created_at: When the record was created.
         updated_at: When the record was last modified.
     """
+
     id: str
     school_id: str
     student_id: str

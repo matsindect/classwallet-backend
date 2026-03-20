@@ -29,7 +29,7 @@ async def list_logs(
     actor: str | None = None,
     action: str | None = None,
     page: int | None = Query(None),
-    pageSize: int | None = Query(None),
+    pageSize: int | None = Query(None),  # noqa: N803
 ):
     """List audit logs with optional filters and pagination.
 

@@ -37,9 +37,7 @@ class ReminderService:
         """
         return await self.repo.list_configs(school_id)
 
-    async def create_config(
-        self, school_id: str, data: dict, actor_id: str
-    ) -> ReminderConfig:
+    async def create_config(self, school_id: str, data: dict, actor_id: str) -> ReminderConfig:
         """Create a new reminder configuration.
 
         Persists the configuration and writes an audit log entry recording

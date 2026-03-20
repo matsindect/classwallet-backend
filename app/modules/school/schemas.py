@@ -85,8 +85,8 @@ class SchoolUserCreate(BaseModel):
 
     email: EmailStr
     phone: str | None = None
-    firstName: str
-    lastName: str
+    firstName: str  # noqa: N815
+    lastName: str  # noqa: N815
     role: str
 
 
@@ -105,8 +105,8 @@ class SchoolUserUpdate(BaseModel):
     """
 
     phone: str | None = None
-    firstName: str | None = None
-    lastName: str | None = None
+    firstName: str | None = None  # noqa: N815
+    lastName: str | None = None  # noqa: N815
     role: str | None = None
     is_active: bool | None = None
 

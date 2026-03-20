@@ -171,7 +171,7 @@ async def generate_invoices(
 async def list_invoices(
     current_user: UserResponse = Depends(get_current_user),
     service: FeeService = Depends(get_fee_service),
-    studentId: str | None = Query(None),
+    studentId: str | None = Query(None),  # noqa: N803
 ):
     """List invoices, optionally filtered by student.
 

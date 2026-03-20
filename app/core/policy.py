@@ -13,7 +13,7 @@ import enum
 from app.core.errors import ForbiddenError
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     """Enumeration of user roles within the ClassWallet system.
 
     Attributes:

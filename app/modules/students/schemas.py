@@ -26,6 +26,7 @@ class StudentCreate(BaseModel):
         guardian_email: Optional guardian email.
         guardian_phone: Optional guardian phone number.
     """
+
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
@@ -54,6 +55,7 @@ class StudentUpdate(BaseModel):
         guardian_email: Updated guardian email.
         guardian_phone: Updated guardian phone number.
     """
+
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
@@ -70,6 +72,7 @@ class StudentResponse(BaseModel):
 
     Populated from the ``Student`` ORM model via ``from_attributes`` mode.
     """
+
     id: str
     school_id: str
     first_name: str
@@ -93,6 +96,7 @@ class StudentImportResponse(BaseModel):
     Contains row-level statistics and any error details from the import.
     Populated from the ``StudentImport`` ORM model via ``from_attributes`` mode.
     """
+
     id: str
     school_id: str
     file_name: str

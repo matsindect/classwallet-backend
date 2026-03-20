@@ -133,9 +133,7 @@ class ZBBankClient:
 
         except httpx.RequestError as exc:
             logger.error("zb_bank_student_upload_network_error", error=str(exc))
-            raise ZBBankAPIError(
-                message=f"Failed to connect to ZB Bank: {exc}"
-            ) from exc
+            raise ZBBankAPIError(message=f"Failed to connect to ZB Bank: {exc}") from exc
 
     async def _post_payments(self, url: str) -> list[dict]:
         """Send a POST request to a ZB Bank payments endpoint.
@@ -172,6 +170,4 @@ class ZBBankClient:
 
         except httpx.RequestError as exc:
             logger.error("zb_bank_network_error", url=url, error=str(exc))
-            raise ZBBankAPIError(
-                message=f"Failed to connect to ZB Bank: {exc}"
-            ) from exc
+            raise ZBBankAPIError(message=f"Failed to connect to ZB Bank: {exc}") from exc
