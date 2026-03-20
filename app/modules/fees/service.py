@@ -45,9 +45,7 @@ class FeeService:
         """
         return await self.repo.list_structures(school_id)
 
-    async def create_structure(
-        self, school_id: str, data: dict, actor_id: str
-    ) -> FeeStructure:
+    async def create_structure(self, school_id: str, data: dict, actor_id: str) -> FeeStructure:
         """Create a new fee structure and log the action.
 
         Args:
@@ -130,9 +128,7 @@ class FeeService:
         )
         return structure
 
-    async def generate_invoices(
-        self, structure_id: str, actor_id: str, school_id: str
-    ) -> int:
+    async def generate_invoices(self, structure_id: str, actor_id: str, school_id: str) -> int:
         """Generate one invoice per eligible student for a fee structure.
 
         If the fee structure specifies a grade, only students in that grade
@@ -155,7 +151,9 @@ class FeeService:
         if not structure:
             raise NotFoundError(message="Fee structure not found")
         if not structure.is_published:
-            raise ValidationError(message="Fee structure must be published before generating invoices")
+            raise ValidationError(
+                message="Fee structure must be published before generating invoices"
+            )
 
         if structure.grade:
             students = await self.student_repo.get_students_by_grade(school_id, structure.grade)

@@ -6,8 +6,6 @@ financial overview statistics for a school.
 
 from pydantic import BaseModel
 
-from app.modules.fees.schemas import StudentInvoiceResponse
-
 
 class ReportOverview(BaseModel):
     """Response schema for the financial overview report.
@@ -22,6 +20,7 @@ class ReportOverview(BaseModel):
         total_outstanding: Sum of remaining balances across invoices.
         collection_rate: Percentage of invoiced amount that has been collected.
     """
+
     total_students: int
     total_invoiced: float
     total_collected: float

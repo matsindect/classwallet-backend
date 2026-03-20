@@ -5,7 +5,7 @@ Defines the ``Student`` and ``StudentImport`` ORM models that map to the
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -31,6 +31,7 @@ class Student(Base):
         created_at: Timestamp of record creation (UTC).
         updated_at: Timestamp of last update (UTC), auto-updated on change.
     """
+
     __tablename__ = "students"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -45,12 +46,12 @@ class Student(Base):
     guardian_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     guardian_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
 
@@ -73,6 +74,7 @@ class StudentImport(Base):
         created_by: Foreign key referencing the user who triggered the import.
         created_at: Timestamp of import execution (UTC).
     """
+
     __tablename__ = "student_imports"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -85,5 +87,5 @@ class StudentImport(Base):
     errors: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

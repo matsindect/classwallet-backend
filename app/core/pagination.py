@@ -25,9 +25,9 @@ class PaginationMeta(BaseModel):
     """
 
     page: int
-    pageSize: int
-    totalCount: int
-    totalPages: int
+    pageSize: int  # noqa: N815
+    totalCount: int  # noqa: N815
+    totalPages: int  # noqa: N815
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

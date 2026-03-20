@@ -6,7 +6,7 @@ own set of users, currency, and timezone settings.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,7 @@ class School(Base):
         created_at: Timestamp of creation (UTC).
         updated_at: Timestamp of last modification (UTC).
     """
+
     __tablename__ = "schools"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -45,10 +46,10 @@ class School(Base):
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

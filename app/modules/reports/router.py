@@ -77,7 +77,7 @@ async def get_outstanding(
 async def export_report(
     current_user: UserResponse = Depends(get_current_user),
     service: ReportService = Depends(get_report_service),
-    reportType: str = Query(...),
+    reportType: str = Query(...),  # noqa: N803
 ):
     """Export school data as a downloadable CSV file.
 

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
         MAX_PAGE_SIZE: Upper bound for the ``page_size`` query parameter.
         DEFAULT_PAGE_SIZE: Page size used when the client does not specify one.
     """
+
     APP_NAME: str = "ClassWallet"
     APP_ENV: str = "development"
     DEBUG: bool = True

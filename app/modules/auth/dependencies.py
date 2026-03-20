@@ -77,9 +77,9 @@ async def get_current_user(
         AuthError: If the user is not found, inactive, or the token has
             been revoked.
     """
+    from app.modules.audit.repository import AuditRepository
     from app.modules.auth.repository import AuthRepository
     from app.modules.auth.service import AuthService
-    from app.modules.audit.repository import AuditRepository
 
     auth_repo = AuthRepository(session)
     audit_repo = AuditRepository(session)

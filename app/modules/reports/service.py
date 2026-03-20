@@ -37,9 +37,7 @@ class ReportService:
         self.payment_repo = payment_repo
         self.student_repo = student_repo
 
-    async def get_overview(
-        self, school_id: str, from_date: datetime, to_date: datetime
-    ) -> dict:
+    async def get_overview(self, school_id: str, from_date: datetime, to_date: datetime) -> dict:
         """Generate a financial overview report for a school.
 
         Computes aggregate statistics including total students, invoiced
@@ -108,26 +106,47 @@ class ReportService:
                 writer.writerow([s.id, s.first_name, s.last_name, s.grade, s.status, s.email])
 
         elif report_type == "invoices":
-            writer.writerow([
-                "Invoice Number", "Student ID", "Amount", "Amount Paid", "Balance", "Status", "Due Date"
-            ])
+            writer.writerow(
+                [
+                    "Invoice Number",
+                    "Student ID",
+                    "Amount",
+                    "Amount Paid",
+                    "Balance",
+                    "Status",
+                    "Due Date",
+                ]
+            )
             invoices = await self.fee_repo.list_invoices(school_id)
             for inv in invoices:
-                writer.writerow([
-                    inv.invoice_number, inv.student_id, inv.amount,
-                    inv.amount_paid, inv.balance, inv.status, inv.due_date,
-                ])
+                writer.writerow(
+                    [
+                        inv.invoice_number,
+                        inv.student_id,
+                        inv.amount,
+                        inv.amount_paid,
+                        inv.balance,
+                        inv.status,
+                        inv.due_date,
+                    ]
+                )
 
         elif report_type == "outstanding":
-            writer.writerow([
-                "Invoice Number", "Student ID", "Amount", "Amount Paid", "Balance", "Status"
-            ])
+            writer.writerow(
+                ["Invoice Number", "Student ID", "Amount", "Amount Paid", "Balance", "Status"]
+            )
             invoices = await self.fee_repo.get_outstanding_invoices(school_id)
             for inv in invoices:
-                writer.writerow([
-                    inv.invoice_number, inv.student_id, inv.amount,
-                    inv.amount_paid, inv.balance, inv.status,
-                ])
+                writer.writerow(
+                    [
+                        inv.invoice_number,
+                        inv.student_id,
+                        inv.amount,
+                        inv.amount_paid,
+                        inv.balance,
+                        inv.status,
+                    ]
+                )
 
         else:
             writer.writerow(["No data for report type: " + report_type])

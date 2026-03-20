@@ -7,7 +7,7 @@ and updates invoice balances. Designed to run as a background task
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -225,7 +225,7 @@ class ZBBankService:
                     reference=txn.reference or txn.zb_id,
                     status="completed",
                     notes=f"Auto-reconciled from ZB Bank transaction {txn.zb_id}",
-                    paid_at=datetime.now(timezone.utc),
+                    paid_at=datetime.now(UTC),
                     created_by=SYSTEM_ACTOR,
                 )
                 await self.payment_repo.create_payment(payment)
@@ -241,9 +241,7 @@ class ZBBankService:
                 await self.session.flush()
 
                 # Mark transaction as matched
-                await self.zb_repo.update_transaction_match(
-                    txn.id, invoice.id, payment.id
-                )
+                await self.zb_repo.update_transaction_match(txn.id, invoice.id, payment.id)
 
                 matched_count += 1
                 total_reconciled += payment_amount
@@ -258,7 +256,7 @@ class ZBBankService:
                 unmatched_count += 1
 
         # Update run record
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
         run.total_transactions = len(unmatched_txns)
         run.matched_count = matched_count
         run.unmatched_count = unmatched_count

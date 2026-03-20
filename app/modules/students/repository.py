@@ -48,9 +48,7 @@ class StudentRepository:
 
         if search:
             pattern = f"%{search}%"
-            filter_expr = (Student.first_name.ilike(pattern)) | (
-                Student.last_name.ilike(pattern)
-            )
+            filter_expr = (Student.first_name.ilike(pattern)) | (Student.last_name.ilike(pattern))
             q = q.where(filter_expr)
             count_q = count_q.where(filter_expr)
         if grade:
@@ -137,9 +135,7 @@ class StudentRepository:
         Returns:
             A list of all ``Student`` objects for the school.
         """
-        result = await self.session.execute(
-            select(Student).where(Student.school_id == school_id)
-        )
+        result = await self.session.execute(select(Student).where(Student.school_id == school_id))
         return list(result.scalars().all())
 
     async def create_import(self, imp: StudentImport) -> StudentImport:

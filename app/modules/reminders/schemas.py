@@ -22,6 +22,7 @@ class ReminderConfigCreate(BaseModel):
         days_before_due: Days before due date to trigger the reminder.
         is_active: Whether the configuration is enabled.
     """
+
     name: str | None = None
     type: str | None = None
     template: str | None = None
@@ -42,6 +43,7 @@ class ReminderConfigUpdate(BaseModel):
         days_before_due: Updated days-before-due value.
         is_active: Updated active/inactive flag.
     """
+
     name: str | None = None
     type: str | None = None
     template: str | None = None
@@ -65,6 +67,7 @@ class ReminderConfigResponse(BaseModel):
         created_at: When the config was created.
         updated_at: When the config was last modified.
     """
+
     id: str
     school_id: str
     name: str
@@ -92,6 +95,7 @@ class ReminderHistoryResponse(BaseModel):
         status: Delivery status of the reminder.
         sent_at: When the reminder was dispatched.
     """
+
     id: str
     school_id: str
     reminder_config_id: str

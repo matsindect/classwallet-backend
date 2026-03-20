@@ -62,9 +62,7 @@ class StudentService:
             status=status,
         )
 
-    async def create_student(
-        self, school_id: str, data: dict, actor_id: str
-    ) -> Student:
+    async def create_student(self, school_id: str, data: dict, actor_id: str) -> Student:
         """Create a new student and log the action to the audit trail.
 
         Args:
