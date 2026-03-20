@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.errors import AppError, app_error_handler
-from app.core.logging import setup_logging
+from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIdMiddleware
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
@@ -26,22 +26,41 @@ from app.modules.reminders.router import router as reminders_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
 from app.modules.students.router import router as students_router
-from app.modules.zb_bank.scheduler import app_ready, start_zb_bank_poller
+from app.modules.zb_bank.scheduler import start_zb_bank_poller
 
 setup_logging()
+logger = get_logger(__name__)
+
+
+async def _run_migrations() -> None:
+    """Run Alembic migrations programmatically at startup."""
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_cfg = Config("alembic.ini")
+
+    def _upgrade(connection):
+        alembic_cfg.attributes["connection"] = connection
+        command.upgrade(alembic_cfg, "head")
+
+    from app.core.database import engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(_upgrade)
+
+    logger.info("migrations_applied")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler.
 
-    Starts the ZB Bank background poller on startup and cancels it
-    on shutdown. The ``app_ready`` event is set after all routers and
-    middleware are registered, signalling the poller that the database
-    and application are fully initialised.
+    Runs database migrations first, then starts the ZB Bank background
+    poller. On shutdown the poller task is cancelled cleanly.
     """
+    await _run_migrations()
+
     zb_task = asyncio.create_task(start_zb_bank_poller())
-    app_ready.set()
     yield
     zb_task.cancel()
     try:
