@@ -22,9 +22,9 @@ from app.modules.auth.router import router as auth_router
 from app.modules.fees.router import router as fees_router
 from app.modules.payments.router import router as payments_router
 from app.modules.reminders.router import router as reminders_router
+from app.modules.rbac.router import router as rbac_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
-from app.modules.rbac.router import router as rbac_router
 from app.modules.students.router import router as students_router
 from app.modules.zb_bank.scheduler import app_ready, start_zb_bank_poller
 
