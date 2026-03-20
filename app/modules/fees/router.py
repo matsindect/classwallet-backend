@@ -39,7 +39,7 @@ async def list_structures(
     Returns:
         A list of ``FeeStructureResponse`` objects.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "fees.read")
     structures = await service.list_structures(current_user.school_id)
     return [FeeStructureResponse.model_validate(s) for s in structures]
 
@@ -62,7 +62,7 @@ async def create_structure(
     Returns:
         The created fee structure as a ``FeeStructureResponse``.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "fees.create")
     structure = await service.create_structure(
         school_id=current_user.school_id,
         data=body.model_dump(exclude_unset=True),
@@ -94,7 +94,7 @@ async def update_structure(
     Raises:
         NotFoundError: If the fee structure does not exist.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "fees.update")
     structure = await service.update_structure(
         structure_id=structure_id,
         data=body.model_dump(exclude_unset=True),
@@ -125,7 +125,7 @@ async def publish_structure(
     Raises:
         NotFoundError: If the fee structure does not exist.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "fees.publish")
     structure = await service.publish_structure(
         structure_id=structure_id,
         actor_id=current_user.id,
@@ -158,7 +158,7 @@ async def generate_invoices(
         NotFoundError: If the fee structure does not exist.
         ValidationError: If the fee structure is not published.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "invoices.create")
     count = await service.generate_invoices(
         structure_id=structure_id,
         actor_id=current_user.id,
@@ -185,6 +185,6 @@ async def list_invoices(
     Returns:
         A list of ``StudentInvoiceResponse`` objects.
     """
-    enforce(current_user.role, "manage_fees")
+    enforce(current_user, "invoices.read")
     invoices = await service.list_invoices(current_user.school_id, studentId)
     return [StudentInvoiceResponse.model_validate(i) for i in invoices]

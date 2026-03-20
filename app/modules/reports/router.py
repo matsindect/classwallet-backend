@@ -43,7 +43,7 @@ async def get_overview(
     Returns:
         A ReportOverview with aggregate financial statistics.
     """
-    enforce(current_user.role, "view_reports")
+    enforce(current_user, "reports.read")
     return await service.get_overview(current_user.school_id, from_date, to_date)
 
 
@@ -68,7 +68,7 @@ async def get_outstanding(
     Returns:
         A list of StudentInvoiceResponse objects for outstanding invoices.
     """
-    enforce(current_user.role, "view_reports")
+    enforce(current_user, "reports.read")
     invoices = await service.get_outstanding(current_user.school_id)
     return [StudentInvoiceResponse.model_validate(i) for i in invoices]
 
@@ -92,7 +92,7 @@ async def export_report(
     Returns:
         A StreamingResponse with CSV content and appropriate download headers.
     """
-    enforce(current_user.role, "view_reports")
+    enforce(current_user, "reports.export")
     csv_content = await service.export_csv(current_user.school_id, reportType)
 
     return StreamingResponse(

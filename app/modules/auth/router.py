@@ -27,7 +27,7 @@ async def login(body: LoginRequest, service: AuthService = Depends(get_auth_serv
         A ``LoginResponse`` containing the user profile and JWT token.
     """
     user, token = await service.login(body.email, body.password)
-    return LoginResponse(user=UserResponse.model_validate(user), token=token)
+    return LoginResponse(user=UserResponse.from_user(user), token=token)
 
 
 @router.get("/me", response_model=UserResponse)

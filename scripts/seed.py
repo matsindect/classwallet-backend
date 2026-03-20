@@ -11,24 +11,170 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import Base, engine, async_session_factory
 from app.core.security import hash_password
 from app.modules.school.models import School
 from app.modules.auth.models import User
+from app.modules.rbac.models import Permission, Role, RolePermission
 from app.modules.students.models import Student
 from app.modules.fees.models import FeeStructure, StudentInvoice
 from app.modules.payments.models import Payment
+
+# Permission definitions (resource.action format with wildcards)
+PERMISSIONS = [
+    ("*", "Unrestricted access to all resources"),
+    ("schools.*", "Full access to school management"),
+    ("schools.create", "Create new schools"),
+    ("schools.read", "View all schools"),
+    ("schools.update", "Update any school"),
+    ("schools.delete", "Delete schools"),
+    ("school.*", "Full access to own school profile"),
+    ("school.read", "View own school profile"),
+    ("school.update", "Update own school profile"),
+    ("users.*", "Full access to user management"),
+    ("users.create", "Create users"),
+    ("users.read", "View users"),
+    ("users.update", "Update users"),
+    ("students.*", "Full access to student management"),
+    ("students.create", "Create students"),
+    ("students.read", "View students"),
+    ("students.update", "Update students"),
+    ("students.import", "Bulk import students from CSV"),
+    ("fees.*", "Full access to fee management"),
+    ("fees.create", "Create fee structures"),
+    ("fees.read", "View fee structures"),
+    ("fees.update", "Update fee structures"),
+    ("fees.publish", "Publish fee structures"),
+    ("invoices.*", "Full access to invoice management"),
+    ("invoices.create", "Generate invoices from fee structures"),
+    ("invoices.read", "View invoices"),
+    ("payments.*", "Full access to payment management"),
+    ("payments.read", "View payments"),
+    ("payments.create", "Record payments"),
+    ("payments.reconcile", "View reconciliation summaries"),
+    ("reminders.*", "Full access to reminder management"),
+    ("reminders.create", "Create reminder configurations"),
+    ("reminders.read", "View reminder configurations and history"),
+    ("reminders.update", "Update reminder configurations"),
+    ("reports.*", "Full access to reports"),
+    ("reports.read", "View financial and enrolment reports"),
+    ("reports.export", "Export reports as CSV"),
+    ("audit.*", "Full access to audit logs"),
+    ("audit.read", "View audit log entries"),
+    ("roles.*", "Full access to role management"),
+    ("roles.create", "Create roles"),
+    ("roles.read", "View roles"),
+    ("roles.update", "Update roles"),
+    ("roles.delete", "Delete roles"),
+    ("permissions.*", "Full access to permission management"),
+    ("permissions.create", "Create new permissions"),
+    ("permissions.read", "View available permissions"),
+]
+
+# Role-to-permission mappings (wildcards resolved by enforce())
+SYSTEM_ROLES = {
+    "SUPER_ADMIN": {
+        "slug": "super-admin",
+        "description": "System-wide super administrator with unrestricted access",
+        "permissions": ["*"],
+    },
+    "ADMIN": {
+        "slug": "admin",
+        "description": "Full school administrator with unrestricted school-level access",
+        "permissions": [
+            "school.*", "users.*", "students.*", "fees.*",
+            "invoices.*", "payments.*", "reminders.*",
+            "reports.*", "audit.*", "roles.*", "permissions.*",
+        ],
+    },
+    "FINANCE": {
+        "slug": "finance",
+        "description": "Finance staff who can manage fees, payments, and reports",
+        "permissions": [
+            "fees.*", "invoices.*",
+            "payments.read", "payments.create", "payments.reconcile",
+            "students.read",
+            "reminders.*",
+            "reports.*",
+        ],
+    },
+    "STAFF": {
+        "slug": "staff",
+        "description": "General school staff with read-oriented access",
+        "permissions": [
+            "payments.read",
+            "students.create", "students.read", "students.update", "students.import",
+        ],
+    },
+}
+
+
+async def seed_rbac(session: AsyncSession) -> dict[str, str]:
+    """Seed permissions and system roles. Returns a map of role name to role ID."""
+    # Create permissions (idempotent)
+    perm_ids: dict[str, str] = {}
+    for action, description in PERMISSIONS:
+        existing = await session.execute(
+            select(Permission).where(Permission.action == action)
+        )
+        perm = existing.scalar_one_or_none()
+        if perm:
+            perm_ids[action] = perm.id
+        else:
+            perm = Permission(action=action, description=description)
+            session.add(perm)
+            await session.flush()
+            perm_ids[action] = perm.id
+
+    # Create system roles (idempotent)
+    role_ids: dict[str, str] = {}
+    for role_name, role_data in SYSTEM_ROLES.items():
+        existing = await session.execute(
+            select(Role).where(Role.slug == role_data["slug"], Role.school_id.is_(None))
+        )
+        role = existing.scalar_one_or_none()
+        if not role:
+            role = Role(
+                name=role_name,
+                slug=role_data["slug"],
+                description=role_data["description"],
+                school_id=None,
+                is_system=True,
+            )
+            session.add(role)
+            await session.flush()
+
+        role_ids[role_name] = role.id
+
+        # Assign permissions to role
+        for perm_action in role_data["permissions"]:
+            existing_rp = await session.execute(
+                select(RolePermission).where(
+                    RolePermission.role_id == role.id,
+                    RolePermission.permission_id == perm_ids[perm_action],
+                )
+            )
+            if not existing_rp.scalar_one_or_none():
+                session.add(
+                    RolePermission(
+                        role_id=role.id,
+                        permission_id=perm_ids[perm_action],
+                    )
+                )
+
+    await session.flush()
+    return role_ids
 
 
 async def seed():
     """Populate the database with development seed data.
 
-    Creates all tables via SQLAlchemy metadata, then inserts a school,
-    three users (ADMIN, FINANCE, STAFF), five students, a fee structure,
-    invoices, and payments.  The first two students are fully paid, the
-    next two are partially paid, and the last student is unpaid.
+    Creates all tables via SQLAlchemy metadata, then inserts RBAC data,
+    a school, three users (ADMIN, FINANCE, STAFF), five students, a fee
+    structure, invoices, and payments.
     """
     # Create all tables
     async with engine.begin() as conn:
@@ -36,6 +182,20 @@ async def seed():
 
     async with async_session_factory() as session:
         session: AsyncSession
+
+        # Seed RBAC first
+        role_ids = await seed_rbac(session)
+
+        # Super Admin (system-wide, no school)
+        super_admin = User(
+            school_id=None,
+            email="super@fundowallet.com",
+            first_name="Super",
+            last_name="Admin",
+            password_hash=hash_password("Super@dmin2026!"),
+            role_id=role_ids["SUPER_ADMIN"],
+        )
+        session.add(super_admin)
 
         # School
         school_id = str(uuid.uuid4())
@@ -59,7 +219,7 @@ async def seed():
             first_name="Admin",
             last_name="User",
             password_hash=hash_password("admin123"),
-            role="ADMIN",
+            role_id=role_ids["ADMIN"],
         )
         session.add(admin)
 
@@ -72,7 +232,7 @@ async def seed():
             first_name="Finance",
             last_name="Manager",
             password_hash=hash_password("finance123"),
-            role="FINANCE",
+            role_id=role_ids["FINANCE"],
         )
         session.add(finance)
 
@@ -85,7 +245,7 @@ async def seed():
             first_name="Staff",
             last_name="Member",
             password_hash=hash_password("staff123"),
-            role="STAFF",
+            role_id=role_ids["STAFF"],
         )
         session.add(staff)
 
@@ -159,12 +319,15 @@ async def seed():
 
         await session.commit()
         print("Seed data created successfully!")
+        print(f"  Super Admin login: super@fundowallet.com / Super@dmin2026!")
         print(f"  School: {school.name} (id: {school_id})")
         print(f"  Admin login: admin@greenfield.edu / admin123")
         print(f"  Finance login: finance@greenfield.edu / finance123")
         print(f"  Staff login: staff@greenfield.edu / staff123")
         print(f"  Students: {len(student_ids)}")
         print(f"  Fee structure: {fs_id}")
+        print(f"  Roles: {list(role_ids.keys())}")
+        print(f"  Permissions: {len(PERMISSIONS)}")
 
 
 if __name__ == "__main__":

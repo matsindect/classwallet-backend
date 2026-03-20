@@ -49,7 +49,7 @@ async def list_logs(
     Returns:
         A paginated dict containing audit log entries and metadata.
     """
-    enforce(current_user.role, "view_audit")
+    enforce(current_user, "audit.read")
     p, ps = clamp_pagination(page, pageSize)
     items, total = await service.list_logs(
         school_id=current_user.school_id,

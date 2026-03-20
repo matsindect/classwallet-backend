@@ -30,7 +30,7 @@ class AuditRepository:
 
     async def log(
         self,
-        school_id: str,
+        school_id: str | None,
         actor_id: str,
         action: str,
         entity: str,

@@ -80,14 +80,14 @@ class SchoolUserCreate(BaseModel):
         phone: Optional phone number.
         firstName: User's first name.
         lastName: User's last name.
-        role: Role to assign (ADMIN, FINANCE, or STAFF).
+        roleId: UUID of the role to assign.
     """
 
     email: EmailStr
     phone: str | None = None
     firstName: str  # noqa: N815
     lastName: str  # noqa: N815
-    role: str
+    roleId: str  # noqa: N815
 
 
 class SchoolUserUpdate(BaseModel):
@@ -100,14 +100,14 @@ class SchoolUserUpdate(BaseModel):
         phone: New phone number.
         firstName: New first name.
         lastName: New last name.
-        role: New role assignment.
+        roleId: UUID of the new role to assign.
         is_active: Whether the user account should be active.
     """
 
     phone: str | None = None
     firstName: str | None = None  # noqa: N815
     lastName: str | None = None  # noqa: N815
-    role: str | None = None
+    roleId: str | None = None  # noqa: N815
     is_active: bool | None = None
 
 
@@ -121,21 +121,40 @@ class SchoolUserResponse(BaseModel):
         phone: Phone number, if provided.
         first_name: User's first name.
         last_name: User's last name.
-        role: User role (ADMIN, FINANCE, or STAFF).
+        role: Role display name.
+        role_id: UUID of the assigned role.
         is_active: Whether the account is enabled.
         created_at: Account creation timestamp.
         updated_at: Last modification timestamp.
     """
 
     id: str
-    school_id: str
+    school_id: str | None = None
     email: str
     phone: str | None = None
     first_name: str
     last_name: str
     role: str
+    role_id: str
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_user(cls, user) -> "SchoolUserResponse":
+        """Build from a User ORM instance with loaded role."""
+        return cls(
+            id=user.id,
+            school_id=user.school_id,
+            email=user.email,
+            phone=user.phone,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role_obj.name,
+            role_id=user.role_id,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )

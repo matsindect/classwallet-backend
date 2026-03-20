@@ -50,7 +50,7 @@ async def list_students(
     Returns:
         A paginated dict containing student data and pagination metadata.
     """
-    enforce(current_user.role, "view_students")
+    enforce(current_user, "students.read")
     p, ps = clamp_pagination(page, pageSize)
     items, total = await service.list_students(
         school_id=current_user.school_id,
@@ -83,7 +83,7 @@ async def create_student(
     Returns:
         The created student as a ``StudentResponse``.
     """
-    enforce(current_user.role, "manage_students")
+    enforce(current_user, "students.create")
     student = await service.create_student(
         school_id=current_user.school_id,
         data=body.model_dump(exclude_unset=True),
@@ -115,7 +115,7 @@ async def update_student(
     Raises:
         NotFoundError: If the student does not exist.
     """
-    enforce(current_user.role, "manage_students")
+    enforce(current_user, "students.update")
     student = await service.update_student(
         student_id=student_id,
         data=body.model_dump(exclude_unset=True),
@@ -146,7 +146,7 @@ async def import_students(
     Returns:
         A ``StudentImportResponse`` with row-level statistics.
     """
-    enforce(current_user.role, "manage_students")
+    enforce(current_user, "students.import")
     content = await file.read()
     imp = await service.import_students(
         school_id=current_user.school_id,
@@ -173,6 +173,6 @@ async def list_imports(
     Returns:
         A list of ``StudentImportResponse`` objects, newest first.
     """
-    enforce(current_user.role, "manage_students")
+    enforce(current_user, "students.read")
     imports = await service.list_imports(current_user.school_id)
     return [StudentImportResponse.model_validate(i) for i in imports]

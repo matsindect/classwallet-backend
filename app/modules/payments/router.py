@@ -49,7 +49,7 @@ async def list_payments(
     Returns:
         A paginated dict containing payment records and metadata.
     """
-    enforce(current_user.role, "view_payments")
+    enforce(current_user, "payments.read")
     p, ps = clamp_pagination(page, pageSize)
     items, total = await service.list_payments(
         school_id=current_user.school_id,
@@ -85,7 +85,7 @@ async def get_reconciliation(
     Returns:
         A list of ReconciliationSummary objects, one per day.
     """
-    enforce(current_user.role, "manage_payments")
+    enforce(current_user, "payments.reconcile")
     return await service.get_reconciliation(
         school_id=current_user.school_id,
         from_date=from_date,
@@ -114,6 +114,6 @@ async def get_payment(
     Raises:
         NotFoundError: If no payment with the given ID exists.
     """
-    enforce(current_user.role, "view_payments")
+    enforce(current_user, "payments.read")
     payment = await service.get_payment(payment_id)
     return PaymentResponse.model_validate(payment)

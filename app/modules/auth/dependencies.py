@@ -86,4 +86,4 @@ async def get_current_user(
     service = AuthService(auth_repo, audit_repo)
     user = await service.get_current_user(token_data["user_id"], token_data["tv"])
     request.state.current_user = user
-    return UserResponse.model_validate(user)
+    return UserResponse.from_user(user)

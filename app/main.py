@@ -24,8 +24,9 @@ from app.modules.payments.router import router as payments_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
+from app.modules.rbac.router import router as rbac_router
 from app.modules.students.router import router as students_router
-from app.modules.zb_bank.scheduler import start_zb_bank_poller
+from app.modules.zb_bank.scheduler import app_ready, start_zb_bank_poller
 
 setup_logging()
 
@@ -35,9 +36,12 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler.
 
     Starts the ZB Bank background poller on startup and cancels it
-    on shutdown.
+    on shutdown. The ``app_ready`` event is set after all routers and
+    middleware are registered, signalling the poller that the database
+    and application are fully initialised.
     """
     zb_task = asyncio.create_task(start_zb_bank_poller())
+    app_ready.set()
     yield
     zb_task.cancel()
     try:
@@ -76,6 +80,7 @@ app.include_router(payments_router)
 app.include_router(reminders_router)
 app.include_router(reports_router)
 app.include_router(audit_router)
+app.include_router(rbac_router)
 
 
 @app.get("/health", tags=["Health"])

@@ -8,6 +8,7 @@ committing the transaction.
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.modules.auth.models import User
 
@@ -23,7 +24,7 @@ class AuthRepository:
         self.session = session
 
     async def get_by_email(self, email: str) -> User | None:
-        """Look up a user by email address.
+        """Look up a user by email address with eagerly loaded role and permissions.
 
         Args:
             email: The email to search for.
@@ -31,11 +32,21 @@ class AuthRepository:
         Returns:
             The matching ``User`` or ``None`` if not found.
         """
-        result = await self.session.execute(select(User).where(User.email == email))
-        return result.scalar_one_or_none()
+        from app.modules.rbac.models import Role, RolePermission
+
+        result = await self.session.execute(
+            select(User)
+            .options(
+                joinedload(User.role_obj)
+                .joinedload(Role.role_permissions)
+                .joinedload(RolePermission.permission)
+            )
+            .where(User.email == email)
+        )
+        return result.unique().scalar_one_or_none()
 
     async def get_by_id(self, user_id: str) -> User | None:
-        """Look up a user by primary key.
+        """Look up a user by primary key with eagerly loaded role and permissions.
 
         Args:
             user_id: UUID string of the user.
@@ -43,8 +54,18 @@ class AuthRepository:
         Returns:
             The matching ``User`` or ``None`` if not found.
         """
-        result = await self.session.execute(select(User).where(User.id == user_id))
-        return result.scalar_one_or_none()
+        from app.modules.rbac.models import Role, RolePermission
+
+        result = await self.session.execute(
+            select(User)
+            .options(
+                joinedload(User.role_obj)
+                .joinedload(Role.role_permissions)
+                .joinedload(RolePermission.permission)
+            )
+            .where(User.id == user_id)
+        )
+        return result.unique().scalar_one_or_none()
 
     async def increment_token_version(self, user_id: str) -> None:
         """Bump the token version for a user, invalidating all existing JWTs.
@@ -65,10 +86,19 @@ class AuthRepository:
         Returns:
             List of ``User`` instances ordered by ``created_at`` descending.
         """
+        from app.modules.rbac.models import Role, RolePermission
+
         result = await self.session.execute(
-            select(User).where(User.school_id == school_id).order_by(User.created_at.desc())
+            select(User)
+            .options(
+                joinedload(User.role_obj)
+                .joinedload(Role.role_permissions)
+                .joinedload(RolePermission.permission)
+            )
+            .where(User.school_id == school_id)
+            .order_by(User.created_at.desc())
         )
-        return list(result.scalars().all())
+        return list(result.unique().scalars().all())
 
     async def create_user(self, user: User) -> User:
         """Persist a new user to the database.

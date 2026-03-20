@@ -71,6 +71,13 @@ def _get_reminder_repository(session: AsyncSession = Depends(get_db_session)):
     return ReminderRepository(session)
 
 
+def _get_rbac_repository(session: AsyncSession = Depends(get_db_session)):
+    """Provide an ``RBACRepository`` instance bound to the current session."""
+    from app.modules.rbac.repository import RBACRepository
+
+    return RBACRepository(session)
+
+
 # --- Services ---
 
 
@@ -141,6 +148,16 @@ def get_reminder_service(
     from app.modules.reminders.service import ReminderService
 
     return ReminderService(repo, audit)
+
+
+def get_rbac_service(
+    repo=Depends(_get_rbac_repository),
+    audit=Depends(_get_audit_repository),
+):
+    """Provide an ``RBACService`` wired with RBAC and audit repositories."""
+    from app.modules.rbac.service import RBACService
+
+    return RBACService(repo, audit)
 
 
 def get_report_service(

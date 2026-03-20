@@ -19,6 +19,7 @@ from app.core.database import Base, get_db_session
 from app.core.security import hash_password
 from app.main import app
 from app.modules.auth.models import User
+from app.modules.rbac.models import Permission, Role, RolePermission
 from app.modules.school.models import School
 
 TEST_DB_URL = "sqlite+aiosqlite:///./test_class_wallet.db"
@@ -76,18 +77,47 @@ app.dependency_overrides[get_db_session] = override_get_db
 
 SCHOOL_ID = str(uuid.uuid4())
 ADMIN_ID = str(uuid.uuid4())
+ADMIN_ROLE_ID = str(uuid.uuid4())
+
+# Admin gets wildcard permissions for all resources
+_TEST_PERMISSIONS = [
+    "*",
+    "school.*", "users.*", "students.*", "fees.*", "invoices.*",
+    "payments.*", "reminders.*", "reports.*", "audit.*",
+    "roles.*", "permissions.*", "schools.*",
+]
 
 
 @pytest_asyncio.fixture
 async def seed_data():
-    """Insert a test school and an ADMIN user into the test database.
-
-    The school and admin IDs are module-level constants (``SCHOOL_ID``,
-    ``ADMIN_ID``) so that other fixtures can reference them.
-    """
+    """Insert RBAC data, a test school, and an ADMIN user into the test database."""
     async with TestSessionLocal() as session:
+        # Create permissions
+        perm_ids = {}
+        for action in _TEST_PERMISSIONS:
+            perm = Permission(action=action)
+            session.add(perm)
+            await session.flush()
+            perm_ids[action] = perm.id
+
+        # Create ADMIN role with all permissions
+        admin_role = Role(
+            id=ADMIN_ROLE_ID,
+            name="ADMIN",
+            slug="admin",
+            is_system=True,
+        )
+        session.add(admin_role)
+        await session.flush()
+
+        for perm_id in perm_ids.values():
+            session.add(RolePermission(role_id=ADMIN_ROLE_ID, permission_id=perm_id))
+
+        # School
         school = School(id=SCHOOL_ID, name="Test School")
         session.add(school)
+
+        # Admin user
         admin = User(
             id=ADMIN_ID,
             school_id=SCHOOL_ID,
@@ -95,7 +125,7 @@ async def seed_data():
             first_name="Admin",
             last_name="User",
             password_hash=hash_password("password123"),
-            role="ADMIN",
+            role_id=ADMIN_ROLE_ID,
         )
         session.add(admin)
         await session.commit()
