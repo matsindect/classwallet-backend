@@ -257,16 +257,16 @@ jobs:
             "curl -sf http://localhost:8000/docs > /dev/null"
         continue-on-error: true
 
-      # --- Clean up CI runner SSH artifacts ---
-      - name: Clean up SSH keys on runner
-        if: always()
-        run: |
-          rm -rf ~/.ssh /tmp/deploy_key /tmp/ssh-agent.sock
-          ssh-agent -k 2>/dev/null || true
-
-      # --- Notify on failure ---
+      # --- Notify on failure (must run before SSH cleanup) ---
       - name: Collect logs on failure
         if: failure()
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.APP_DIR }} && docker compose -f docker-compose.prod.yml logs --tail=100 app"
+
+      # --- Clean up CI runner SSH artifacts (always runs last) ---
+      - name: Clean up SSH keys on runner
+        if: always()
+        run: |
+          rm -rf ~/.ssh /tmp/deploy_key /tmp/ssh-agent.sock
+          ssh-agent -k 2>/dev/null || true
