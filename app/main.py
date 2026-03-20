@@ -34,16 +34,16 @@ logger = get_logger(__name__)
 
 async def _run_migrations() -> None:
     """Run Alembic migrations programmatically at startup."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
+    from app.core.database import engine
 
     alembic_cfg = Config("alembic.ini")
 
     def _upgrade(connection):
         alembic_cfg.attributes["connection"] = connection
         command.upgrade(alembic_cfg, "head")
-
-    from app.core.database import engine
 
     async with engine.begin() as conn:
         await conn.run_sync(_upgrade)
