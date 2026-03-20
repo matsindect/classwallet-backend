@@ -353,34 +353,8 @@ sudo chmod 600 /home/deploy/.ssh/authorized_keys
 sudo mkdir -p /opt/class-wallet-backend
 sudo chown deploy:deploy /opt/class-wallet-backend
 
-# 8. (Optional) Install and configure Nginx
+# 8. Install Nginx and Certbot
 sudo apt install -y nginx certbot python3-certbot-nginx
-```
-
-### Nginx reverse proxy config (recommended)
-
-```nginx
-# /etc/nginx/sites-available/class-wallet
-server {
-    listen 80;
-    server_name api.your-domain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Then:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/class-wallet /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d api.your-domain.com
 ```
 
 ### Firewall setup
@@ -402,7 +376,11 @@ sudo ufw enable
 ├── alembic.ini
 ├── scripts/
 ├── deploy/
-│   └── deploy.sh
+│   ├── deploy.sh           # Server-side deployment script
+│   └── nginx/
+│       ├── api.fundowallet.com   # Nginx site config (source of truth)
+│       ├── rate-limit.conf       # Rate limiting zones
+│       └── proxy_params          # Proxy header config
 ├── Dockerfile
 ├── docker-compose.prod.yml
 └── pyproject.toml
@@ -410,7 +388,123 @@ sudo ufw enable
 
 ---
 
-## 10. Deployment Flow on the Server
+## 10. Nginx Reverse Proxy — `api.fundowallet.com`
+
+The public API is served via Nginx as a reverse proxy in front of Uvicorn. The Nginx configuration lives **in the repository** under `deploy/nginx/` and is automatically synced to the server on every deploy.
+
+### Architecture
+
+```
+Internet → Nginx (:443 TLS) → Uvicorn (:8000 internal) → FastAPI app
+```
+
+### Config files
+
+| File | Server location | Purpose |
+|---|---|---|
+| `deploy/nginx/api.fundowallet.com` | `/etc/nginx/sites-available/api.fundowallet.com` | Main site config |
+| `deploy/nginx/rate-limit.conf` | `/etc/nginx/conf.d/rate-limit.conf` | Rate limiting zones |
+| `deploy/nginx/proxy_params` | `/etc/nginx/proxy_params` | Proxy headers |
+
+### TLS / SSL
+
+- **Provider**: Let's Encrypt via Certbot
+- **Auto-renewal**: Enabled via `certbot.timer` systemd service
+- **Protocols**: TLS 1.2 and 1.3 only
+- **HSTS**: Enabled with `max-age=31536000; includeSubDomains`
+- **HTTP → HTTPS**: All port 80 traffic is 301-redirected to port 443
+
+### Rate limiting
+
+Two rate limit zones are configured to prevent abuse:
+
+| Zone | Rate | Burst | Applied to |
+|---|---|---|---|
+| `api_general` | 30 req/s per IP | 20 | All endpoints (`/`) |
+| `auth_strict` | 5 req/s per IP | 3–5 | `/auth/login` and `/auth/*` |
+
+When limits are exceeded, Nginx returns **HTTP 429 Too Many Requests**.
+
+### Bot and scanner filtering
+
+Requests are blocked (**HTTP 403**) if the `User-Agent` matches known scanners:
+
+- **Vulnerability scanners**: nikto, sqlmap, nmap, masscan, zgrab, nuclei, gobuster, dirbuster
+- **CMS scanners**: wpscan, joomla, drupal
+- **SEO/scraper bots**: semrush, ahref, mj12bot, dotbot, petalbot, bytespider, gptbot, ccbot
+- **Script libraries**: libwww-perl, mechanize, scrapy
+
+### Exploit path blocking
+
+Requests to common attack paths return **HTTP 404**:
+
+- WordPress: `/wp-admin`, `/wp-login`, `/wp-content`, `/wp-includes`
+- Admin panels: `/admin`, `/phpmyadmin`, `/pma`, `/myadmin`, `/mysql`, `/phpinfo`
+- Scripting: `*.php`, `*.asp`, `*.aspx`, `*.jsp`, `*.cgi`
+- Sensitive files: `/.env`, `/.git`, `/.htaccess`, `/.htpasswd`
+- Shells: `/shell`, `/eval-stdin`, `/cgi-bin`, `/config.php`
+
+### Security headers
+
+All responses include:
+
+| Header | Value |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `X-XSS-Protection` | `1; mode=block` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+
+### Host validation
+
+Requests without a valid `Host: api.fundowallet.com` header are silently dropped (**HTTP 444**, Nginx closes the connection with no response).
+
+### Request limits
+
+| Limit | Value |
+|---|---|
+| Max request body | 10 MB |
+| Proxy read timeout | 30 seconds |
+| Proxy connect timeout | 10 seconds |
+
+### How Nginx config is deployed
+
+The deploy script (`deploy/deploy.sh`) automatically syncs Nginx config on every deployment:
+
+1. **Diffs** each file in `deploy/nginx/` against the server's live config
+2. **Copies** only changed files to their server locations
+3. **Validates** with `nginx -t` — if the config is invalid, the deploy **fails** and the old config is preserved
+4. **Reloads** Nginx (zero-downtime) if validation passes
+
+The `deploy` user has limited passwordless sudo for Nginx operations only:
+
+```
+deploy ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+deploy ALL=(root) NOPASSWD: /bin/cp deploy/nginx/* /etc/nginx/...
+```
+
+### Editing Nginx config
+
+To change the Nginx configuration:
+
+1. Edit files under `deploy/nginx/` in the repository
+2. Commit and push (merge to `dev`)
+3. The CI/CD pipeline syncs and applies the changes automatically
+
+No manual SSH needed.
+
+### Logs
+
+| Log | Location |
+|---|---|
+| Access log | `/var/log/nginx/api.fundowallet.com.access.log` |
+| Error log | `/var/log/nginx/api.fundowallet.com.error.log` |
+
+---
+
+## 11. Deployment Flow on the Server
 
 The pipeline executes these steps in order:
 
@@ -426,9 +520,11 @@ sequenceDiagram
     Note over SRV: 3b. alembic upgrade head (via run --rm)
     Note over SRV: 3c. docker compose up -d
     Note over SRV: 3d. Health check loop (15 attempts × 4s)
-    Note over SRV: 3e. Prune old images
-    GA->>SRV: 4. Verify /health returns "ok"
-    GA->>SRV: 5. Verify /docs is accessible
+    Note over SRV: 3e. Sync Nginx config (diff → copy → validate → reload)
+    Note over SRV: 3f. Prune old images
+    GA->>SRV: 4. Verify /health returns "ok" (internal)
+    GA->>SRV: 5. Verify /docs is accessible (internal)
+    GA->>SRV: 6. Verify https://api.fundowallet.com/health (external)
 ```
 
 ### Deployment steps in detail
@@ -439,17 +535,20 @@ sequenceDiagram
 4. **Migrate** — Runs Alembic migrations in a temporary container (`run --rm`)
 5. **Start** — `docker compose up -d --remove-orphans` — recreates only changed services
 6. **Health check** — Polls `http://localhost:8000/health` up to 15 times (60s total)
-7. **Prune** — Removes dangling Docker images to reclaim disk space
+7. **Nginx sync** — Diffs `deploy/nginx/` against live config, copies changes, validates with `nginx -t`, reloads. Fails the deploy if config is invalid.
+8. **HTTPS verify** — Pipeline curls `https://api.fundowallet.com/health` to confirm end-to-end connectivity
+9. **Prune** — Removes dangling Docker images to reclaim disk space
 
 ---
 
-## 11. Post-Deploy Verification and Rollback
+## 12. Post-Deploy Verification and Rollback
 
 ### Health checks performed
 
 1. **Docker-level**: Container HEALTHCHECK (curl to /health every 30s)
 2. **Pipeline-level**: SSH → curl /health (with timeout)
 3. **Smoke test**: SSH → curl /docs (verifies FastAPI is fully up)
+4. **HTTPS verification**: curl https://api.fundowallet.com/health (end-to-end through Nginx)
 
 ### Rollback procedure
 
@@ -481,7 +580,7 @@ docker compose -f docker-compose.prod.yml run --rm app alembic downgrade -1
 
 ---
 
-## 12. Risks and Gaps
+## 13. Risks and Gaps
 
 ### Critical gaps in the current repository
 
@@ -493,8 +592,8 @@ docker compose -f docker-compose.prod.yml run --rm app alembic downgrade -1
 | **No deployment script** | No automated deploy process | ✅ Created `deploy/deploy.sh` |
 | **SQLite as default DB** | Not suitable for production | Use PostgreSQL via `DATABASE_URL` env |
 | **JWT secret has default** | Insecure if not overridden | Must set `JWT_SECRET_KEY` in production |
-| **No rate limiting** | `/auth/login` vulnerable to brute force | Add `slowapi` or `fastapi-limiter` |
-| **No HTTPS in app** | TLS must be handled externally | Nginx/Caddy reverse proxy required |
+| **No rate limiting** | `/auth/login` vulnerable to brute force | ✅ Nginx rate limiting configured (5 req/s on auth, 30 req/s general) |
+| **No HTTPS in app** | TLS must be handled externally | ✅ Nginx reverse proxy with Let's Encrypt TLS on `api.fundowallet.com` |
 | **No log aggregation** | Logs only in Docker | Consider forwarding to a log service |
 | **No DB backups** | Data loss risk | Set up `pg_dump` cron or volume snapshots |
 | **`asyncpg` not in deps** | PostgreSQL driver missing from pyproject.toml | Add `asyncpg` to dependencies |
@@ -511,7 +610,7 @@ docker compose -f docker-compose.prod.yml run --rm app alembic downgrade -1
 
 ---
 
-## 13. Exact Files Created or Modified
+## 14. Exact Files Created or Modified
 
 ### New files created
 
@@ -521,7 +620,12 @@ docker compose -f docker-compose.prod.yml run --rm app alembic downgrade -1
 | `docker-compose.prod.yml` | Production Compose with app + db + health checks |
 | `.dockerignore` | Excludes unnecessary files from Docker build |
 | `.github/workflows/deploy-dev.yml` | Full CI/CD pipeline |
-| `deploy/deploy.sh` | Server-side deployment script |
+| `deploy/deploy.sh` | Server-side deployment script (includes Nginx sync) |
+| `deploy/nginx/api.fundowallet.com` | Nginx site config with TLS, rate limiting, bot filtering |
+| `deploy/nginx/rate-limit.conf` | Nginx rate limiting zone definitions |
+| `deploy/nginx/proxy_params` | Nginx proxy header configuration |
+| `deploy/setup-nginx.sh` | One-time server setup script for Nginx + Certbot |
+| `.githooks/pre-commit` | Local pre-commit hook (ruff + tests) |
 | `docs/ci-cd-pipeline.md` | This document |
 
 ### Files that should be modified
@@ -533,7 +637,7 @@ docker compose -f docker-compose.prod.yml run --rm app alembic downgrade -1
 
 ---
 
-## 14. Final Recommendation
+## 15. Final Recommendation
 
 ### 1. Best overall pipeline approach
 
@@ -612,13 +716,19 @@ flowchart TB
         Build --> Migrate[alembic upgrade head]
         Migrate --> Up[docker compose up -d]
         Up --> Health[Health check loop]
+        Health --> NginxSync[Sync Nginx config<br>diff → validate → reload]
+        NginxSync --> Verify[Verify HTTPS endpoint]
 
         subgraph Services["Running Services"]
-            API[FastAPI :8000]
-            DB[(PostgreSQL :5432)]
-            Nginx[Nginx :443]
+            Nginx["Nginx :443<br>TLS + rate limit + bot filter"]
+            Nginx -->|proxy_pass| API[FastAPI :8000]
+            API --> DB[(PostgreSQL :5432)]
         end
 
-        Health --> Services
+        Verify --> Services
+    end
+
+    subgraph "Internet"
+        Client[Client] -->|HTTPS| Nginx
     end
 ```

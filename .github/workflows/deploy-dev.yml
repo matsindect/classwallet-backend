@@ -252,6 +252,12 @@ jobs:
             "curl -sf http://localhost:8000/docs > /dev/null"
         continue-on-error: true
 
+      - name: Verify HTTPS endpoint
+        run: |
+          curl -sf https://api.fundowallet.com/health | grep -q ok
+          echo "HTTPS endpoint verified"
+        continue-on-error: true
+
       # --- Notify on failure (must run before SSH cleanup) ---
       - name: Collect logs on failure
         if: failure()
