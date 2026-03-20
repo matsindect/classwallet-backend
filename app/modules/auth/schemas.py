@@ -60,9 +60,7 @@ class UserResponse(BaseModel):
     @classmethod
     def from_user(cls, user) -> "UserResponse":
         """Build a UserResponse from a User ORM instance with loaded role."""
-        permissions = [
-            rp.permission.action for rp in user.role_obj.role_permissions
-        ]
+        permissions = [rp.permission.action for rp in user.role_obj.role_permissions]
         return cls(
             id=user.id,
             school_id=user.school_id,

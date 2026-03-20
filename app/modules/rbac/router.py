@@ -25,10 +25,7 @@ router = APIRouter(prefix="/roles", tags=["Roles & Permissions"])
 
 def _role_to_response(role) -> RoleResponse:
     """Map a Role ORM instance to a RoleResponse with nested permissions."""
-    permissions = [
-        PermissionResponse.model_validate(rp.permission)
-        for rp in role.role_permissions
-    ]
+    permissions = [PermissionResponse.model_validate(rp.permission) for rp in role.role_permissions]
     return RoleResponse(
         id=role.id,
         name=role.name,

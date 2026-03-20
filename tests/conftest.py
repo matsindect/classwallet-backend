@@ -79,12 +79,27 @@ SCHOOL_ID = str(uuid.uuid4())
 ADMIN_ID = str(uuid.uuid4())
 ADMIN_ROLE_ID = str(uuid.uuid4())
 
-# Admin gets wildcard permissions for all resources
+# Wildcards for admin + granular permissions used by other test roles
 _TEST_PERMISSIONS = [
     "*",
-    "school.*", "users.*", "students.*", "fees.*", "invoices.*",
-    "payments.*", "reminders.*", "reports.*", "audit.*",
-    "roles.*", "permissions.*", "schools.*",
+    "school.*",
+    "users.*",
+    "students.*",
+    "fees.*",
+    "invoices.*",
+    "payments.*",
+    "reminders.*",
+    "reports.*",
+    "audit.*",
+    "roles.*",
+    "permissions.*",
+    "schools.*",
+    # Granular permissions (needed by STAFF and other non-wildcard roles in tests)
+    "payments.read",
+    "students.create",
+    "students.read",
+    "students.update",
+    "students.import",
 ]
 
 

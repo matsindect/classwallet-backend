@@ -26,9 +26,7 @@ class RBACRepository:
     async def get_role_by_id(self, role_id: str) -> Role | None:
         result = await self.session.execute(
             select(Role)
-            .options(
-                joinedload(Role.role_permissions).joinedload(RolePermission.permission)
-            )
+            .options(joinedload(Role.role_permissions).joinedload(RolePermission.permission))
             .where(Role.id == role_id)
         )
         return result.unique().scalar_one_or_none()
@@ -37,17 +35,13 @@ class RBACRepository:
         """Return system roles and school-scoped roles for the given school."""
         result = await self.session.execute(
             select(Role)
-            .options(
-                joinedload(Role.role_permissions).joinedload(RolePermission.permission)
-            )
+            .options(joinedload(Role.role_permissions).joinedload(RolePermission.permission))
             .where((Role.school_id.is_(None)) | (Role.school_id == school_id))
             .order_by(Role.is_system.desc(), Role.name)
         )
         return list(result.unique().scalars().all())
 
-    async def get_role_by_slug_and_school(
-        self, slug: str, school_id: str | None
-    ) -> Role | None:
+    async def get_role_by_slug_and_school(self, slug: str, school_id: str | None) -> Role | None:
         result = await self.session.execute(
             select(Role).where(Role.slug == slug, Role.school_id == school_id)
         )
@@ -87,15 +81,11 @@ class RBACRepository:
     # --- Permissions ---
 
     async def get_all_permissions(self) -> list[Permission]:
-        result = await self.session.execute(
-            select(Permission).order_by(Permission.action)
-        )
+        result = await self.session.execute(select(Permission).order_by(Permission.action))
         return list(result.scalars().all())
 
     async def get_permission_by_action(self, action: str) -> Permission | None:
-        result = await self.session.execute(
-            select(Permission).where(Permission.action == action)
-        )
+        result = await self.session.execute(select(Permission).where(Permission.action == action))
         return result.scalar_one_or_none()
 
     async def get_permissions_by_ids(self, permission_ids: list[str]) -> list[Permission]:
@@ -111,15 +101,9 @@ class RBACRepository:
 
     # --- Role-Permission assignments ---
 
-    async def set_role_permissions(
-        self, role_id: str, permission_ids: list[str]
-    ) -> None:
+    async def set_role_permissions(self, role_id: str, permission_ids: list[str]) -> None:
         """Replace all permissions for a role with the given set."""
-        await self.session.execute(
-            delete(RolePermission).where(RolePermission.role_id == role_id)
-        )
+        await self.session.execute(delete(RolePermission).where(RolePermission.role_id == role_id))
         for perm_id in permission_ids:
-            self.session.add(
-                RolePermission(role_id=role_id, permission_id=perm_id)
-            )
+            self.session.add(RolePermission(role_id=role_id, permission_id=perm_id))
         await self.session.flush()

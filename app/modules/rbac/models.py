@@ -53,9 +53,7 @@ class Role(Base):
     """
 
     __tablename__ = "roles"
-    __table_args__ = (
-        UniqueConstraint("slug", "school_id", name="uq_role_slug_school"),
-    )
+    __table_args__ = (UniqueConstraint("slug", "school_id", name="uq_role_slug_school"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -91,9 +89,7 @@ class RolePermission(Base):
     """
 
     __tablename__ = "role_permissions"
-    __table_args__ = (
-        UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),
-    )
+    __table_args__ = (UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     role_id: Mapped[str] = mapped_column(

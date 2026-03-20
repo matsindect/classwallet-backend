@@ -133,9 +133,7 @@ class RBACService:
 
         return await self.repo.get_role_by_id(role_id)  # type: ignore[return-value]
 
-    async def delete_role(
-        self, role_id: str, school_id: str, actor_id: str
-    ) -> None:
+    async def delete_role(self, role_id: str, school_id: str, actor_id: str) -> None:
         role = await self.repo.get_role_by_id(role_id)
         if not role:
             raise NotFoundError(message="Role not found")
@@ -165,9 +163,7 @@ class RBACService:
     async def list_permissions(self):
         return await self.repo.get_all_permissions()
 
-    async def create_permission(
-        self, action: str, description: str | None, actor_id: str
-    ):
+    async def create_permission(self, action: str, description: str | None, actor_id: str):
         from app.modules.rbac.models import Permission
 
         existing = await self.repo.get_permission_by_action(action)

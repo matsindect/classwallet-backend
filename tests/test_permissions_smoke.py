@@ -21,7 +21,10 @@ from tests.conftest import SCHOOL_ID, TestSessionLocal, app
 # STAFF permissions: limited student and payment access
 _STAFF_PERMISSIONS = [
     "payments.read",
-    "students.create", "students.read", "students.update", "students.import",
+    "students.create",
+    "students.read",
+    "students.update",
+    "students.import",
 ]
 
 
@@ -43,9 +46,7 @@ async def staff_token(seed_data):
 
         # Assign subset of permissions
         for action in _STAFF_PERMISSIONS:
-            result = await session.execute(
-                select(Permission).where(Permission.action == action)
-            )
+            result = await session.execute(select(Permission).where(Permission.action == action))
             perm = result.scalar_one()
             session.add(RolePermission(role_id=staff_role_id, permission_id=perm.id))
 
