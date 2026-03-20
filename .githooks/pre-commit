@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -e
+
+echo "==> Running ruff check..."
+ruff check app/ tests/
+
+echo "==> Running ruff format check..."
+ruff format --check app/ tests/
+
+echo "==> Running tests..."
+rm -f test_class_wallet.db
+python -m pytest tests/ -v --tb=short
+
+echo "==> All checks passed!"
