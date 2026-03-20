@@ -58,6 +58,4 @@ def enforce(user: UserResponse, action: str) -> None:
         ForbiddenError: If the user does not have the required permission.
     """
     if not _has_permission(user.permissions, action):
-        raise ForbiddenError(
-            message=f"Role '{user.role}' is not allowed to perform '{action}'"
-        )
+        raise ForbiddenError(message=f"Role '{user.role}' is not allowed to perform '{action}'")

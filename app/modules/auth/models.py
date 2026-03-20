@@ -51,9 +51,7 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    role_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("roles.id"), nullable=False
-    )
+    role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     token_version: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(
