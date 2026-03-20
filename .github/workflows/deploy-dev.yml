@@ -177,40 +177,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- Set up SSH agent with passphrase-protected key ---
-      - name: Configure SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh-auth-sock: /tmp/ssh-agent.sock
-        env:
-          SSH_AUTH_SOCK: /tmp/ssh-agent.sock
-
-      - name: Add SSH key with passphrase
+      # --- Set up SSH with passphrase-protected key ---
+      - name: Configure SSH
         run: |
-          eval "$(ssh-agent -s)"
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-
-          # Install sshpass + expect for passphrase handling
+          # Install expect for passphrase handling
           sudo apt-get update -qq && sudo apt-get install -y -qq expect
 
-          # Use expect to add key with passphrase
-          expect <<'EXPECT_SCRIPT'
-          spawn ssh-add /tmp/deploy_key
+          # Set up known_hosts
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          # Write private key
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Start ssh-agent and add key with passphrase via expect
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+
+          expect <<EOF
+          spawn ssh-add /home/runner/.ssh/deploy_key
           expect "Enter passphrase"
           send "${{ secrets.SSH_KEY_PASSPHRASE }}\r"
           expect eof
-          EXPECT_SCRIPT
+          EOF
 
-          # Clean up key file
-          rm -f /tmp/deploy_key
-
-      - name: Configure known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          # Verify key was loaded
+          ssh-add -l
 
       # --- Sync code to server ---
       - name: Sync repository to server
