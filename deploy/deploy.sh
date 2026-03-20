@@ -107,6 +107,48 @@ for i in $(seq 1 $MAX_RETRIES); do
     sleep $RETRY_INTERVAL
 done
 
+# --- Sync Nginx config if changed ---
+echo "==> Syncing Nginx config..."
+NGINX_CHANGED=false
+
+if [ -f deploy/nginx/rate-limit.conf ]; then
+    if ! diff -q deploy/nginx/rate-limit.conf /etc/nginx/conf.d/rate-limit.conf > /dev/null 2>&1; then
+        sudo /bin/cp deploy/nginx/rate-limit.conf /etc/nginx/conf.d/rate-limit.conf
+        NGINX_CHANGED=true
+        echo "    Updated rate-limit.conf"
+    fi
+fi
+
+if [ -f deploy/nginx/proxy_params ]; then
+    if ! diff -q deploy/nginx/proxy_params /etc/nginx/proxy_params > /dev/null 2>&1; then
+        sudo /bin/cp deploy/nginx/proxy_params /etc/nginx/proxy_params
+        NGINX_CHANGED=true
+        echo "    Updated proxy_params"
+    fi
+fi
+
+if [ -f deploy/nginx/api.fundowallet.com ]; then
+    if ! diff -q deploy/nginx/api.fundowallet.com /etc/nginx/sites-available/api.fundowallet.com > /dev/null 2>&1; then
+        sudo /bin/cp deploy/nginx/api.fundowallet.com /etc/nginx/sites-available/api.fundowallet.com
+        NGINX_CHANGED=true
+        echo "    Updated api.fundowallet.com site config"
+    fi
+fi
+
+if [ "$NGINX_CHANGED" = true ]; then
+    echo "==> Validating Nginx config..."
+    if sudo /usr/sbin/nginx -t 2>&1; then
+        echo "==> Reloading Nginx..."
+        sudo /usr/bin/systemctl reload nginx
+        echo "    Nginx reloaded with updated config."
+    else
+        echo "==> ERROR: Nginx config test failed! Keeping previous config."
+        exit 1
+    fi
+else
+    echo "    No Nginx config changes detected."
+fi
+
 # --- Cleanup old images ---
 echo "==> Pruning dangling images..."
 docker image prune -f

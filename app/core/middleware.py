@@ -46,9 +46,11 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         response.headers["X-Request-ID"] = request_id
+        client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
         logger.info(
             "request_completed",
             request_id=request_id,
+            client_ip=client_ip,
             method=request.method,
             path=request.url.path,
             status_code=response.status_code,
