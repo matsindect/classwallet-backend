@@ -167,7 +167,7 @@ class RBACService:
 
     async def create_permission(
         self, action: str, description: str | None, actor_id: str
-    ) -> "Permission":
+    ):
         from app.modules.rbac.models import Permission
 
         existing = await self.repo.get_permission_by_action(action)

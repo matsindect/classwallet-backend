@@ -42,7 +42,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    school_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("schools.id"), nullable=True)
+    school_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("schools.id"), nullable=True
+    )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
