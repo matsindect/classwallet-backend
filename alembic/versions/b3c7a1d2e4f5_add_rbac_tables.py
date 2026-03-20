@@ -7,6 +7,7 @@ Create Date: 2026-03-20 10:00:00.000000
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -252,6 +253,7 @@ def upgrade() -> None:
         batch_op.alter_column("school_id", existing_type=sa.String(36), nullable=True)
 
     # 11. Seed the super_admin user
+    now = datetime.now(timezone.utc).isoformat()
     users_table = sa.table(
         "users",
         sa.column("id", sa.String),
@@ -264,6 +266,8 @@ def upgrade() -> None:
         sa.column("role_id", sa.String),
         sa.column("is_active", sa.Boolean),
         sa.column("token_version", sa.Integer),
+        sa.column("created_at", sa.String),
+        sa.column("updated_at", sa.String),
     )
     op.execute(
         users_table.insert().values(
@@ -277,6 +281,8 @@ def upgrade() -> None:
             role_id=role_ids["SUPER_ADMIN"],
             is_active=True,
             token_version=0,
+            created_at=now,
+            updated_at=now,
         )
     )
 
