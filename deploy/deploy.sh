@@ -6,7 +6,7 @@
 # ------------------------------------------------------------------
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/class-wallet-backend}"
+APP_DIR="${APP_DIR:-/opt/dev/class-wallet-backend}"
 COMPOSE_FILE="docker-compose.prod.yml"
 
 echo "==> Deploying Class Wallet Backend"
