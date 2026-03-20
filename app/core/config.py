@@ -5,6 +5,7 @@ environment.  A single ``settings`` instance is created at module level and
 imported throughout the application.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -42,6 +43,21 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
+        """Accept both JSON array and comma-separated string formats."""
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            # Try JSON first, fall back to comma-separated
+            if v.startswith("["):
+                import json
+
+                return json.loads(v)
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     MAX_PAGE_SIZE: int = 100
     DEFAULT_PAGE_SIZE: int = 20
