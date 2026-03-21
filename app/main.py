@@ -10,7 +10,7 @@ handler and exposes a lightweight ``/health`` endpoint.
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -91,23 +91,23 @@ app.add_middleware(RequestIdMiddleware)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_error_handler)
 
-# --- Routers ---
-app.include_router(auth_router)
-app.include_router(school_router)
-app.include_router(students_router)
-app.include_router(fees_router)
-app.include_router(payments_router)
-app.include_router(reminders_router)
-app.include_router(reports_router)
-app.include_router(audit_router)
-app.include_router(rbac_router)
-
-
+# --- Health check (no prefix — used by Docker/Nginx) ---
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Return a simple health-check response.
-
-    Returns:
-        dict: A JSON object with ``{"status": "ok"}``.
-    """
+    """Return a simple health-check response."""
     return {"status": "ok"}
+
+
+# --- Versioned API router ---
+api_router = APIRouter(prefix="/api/v1")
+api_router.include_router(auth_router)
+api_router.include_router(school_router)
+api_router.include_router(students_router)
+api_router.include_router(fees_router)
+api_router.include_router(payments_router)
+api_router.include_router(reminders_router)
+api_router.include_router(reports_router)
+api_router.include_router(audit_router)
+api_router.include_router(rbac_router)
+
+app.include_router(api_router)

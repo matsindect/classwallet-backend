@@ -15,6 +15,19 @@ from app.core.schemas import CamelModel
 # Role → UI permission mapping (for frontend display only, not RBAC enforcement)
 # ---------------------------------------------------------------------------
 ROLE_UI_PERMISSIONS: dict[str, list[str]] = {
+    "SUPER_ADMIN": [
+        "school.*",
+        "users.*",
+        "students.*",
+        "fees.*",
+        "invoices.*",
+        "payments.*",
+        "reminders.*",
+        "reports.*",
+        "audit.*",
+        "roles.*",
+        "permissions.*",
+    ],
     "ADMIN": [
         "school.*",
         "users.*",
