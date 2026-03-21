@@ -63,7 +63,7 @@ async def staff_token(seed_data):
         await session.commit()
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test/api/v1") as client:
         resp = await client.post(
             "/auth/login",
             json={"email": "staff@test.com", "password": "password123"},

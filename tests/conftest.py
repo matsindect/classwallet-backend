@@ -155,7 +155,7 @@ async def client():
         directly to the ASGI application without network I/O.
     """
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test/api/v1") as ac:
         yield ac
 
 
