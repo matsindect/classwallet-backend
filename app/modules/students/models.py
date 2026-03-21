@@ -1,14 +1,15 @@
 """SQLAlchemy models for the students module.
 
-Defines the ``Student`` and ``StudentImport`` ORM models that map to the
-``students`` and ``student_imports`` database tables respectively.
+Defines the ``Student``, ``Guardian``, and ``StudentImport`` ORM models that
+map to the ``students``, ``guardians``, and ``student_imports`` database tables
+respectively.
 """
 
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -19,15 +20,20 @@ class Student(Base):
     Attributes:
         id: UUID primary key.
         school_id: Foreign key referencing the school the student belongs to.
+        student_id: Optional display ID (e.g. "ARH-2024-001").
         first_name: Student's first name.
         last_name: Student's last name.
         email: Optional student email address.
         phone: Optional student phone number.
-        grade: Optional grade/class level (e.g. "Grade 5").
-        status: Enrolment status, defaults to "active".
-        guardian_name: Optional name of the student's guardian.
-        guardian_email: Optional guardian email address.
-        guardian_phone: Optional guardian phone number.
+        grade: Optional grade/class level (e.g. "Form 4").
+        class_name: Optional class name (e.g. "Science A").
+        status: Enrolment status, defaults to "ACTIVE".
+        date_of_birth: Optional date of birth as YYYY-MM-DD string.
+        enrollment_date: Optional enrollment date as YYYY-MM-DD string.
+        balance: Outstanding fee balance, defaults to 0.0.
+        guardian_name: Legacy — optional name of the student's guardian.
+        guardian_email: Legacy — optional guardian email address.
+        guardian_phone: Legacy — optional guardian phone number.
         created_at: Timestamp of record creation (UTC).
         updated_at: Timestamp of last update (UTC), auto-updated on change.
     """
@@ -36,12 +42,17 @@ class Student(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     school_id: Mapped[str] = mapped_column(String(36), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     grade: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    class_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
+    date_of_birth: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    enrollment_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    balance: Mapped[float] = mapped_column(Float, default=0.0)
     guardian_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     guardian_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     guardian_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -53,6 +64,39 @@ class Student(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+    guardians = relationship(
+        "Guardian",
+        backref="student",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+
+class Guardian(Base):
+    """Represents a guardian/parent associated with a student.
+
+    Attributes:
+        id: UUID primary key.
+        student_id: Foreign key referencing the student.
+        first_name: Guardian's first name.
+        last_name: Guardian's last name.
+        relationship: Relationship to the student (e.g. "Mother", "Father").
+        phone: Guardian's phone number.
+        email: Optional guardian email address.
+        is_primary: Whether this is the primary guardian.
+    """
+
+    __tablename__ = "guardians"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    student_id: Mapped[str] = mapped_column(String(36), ForeignKey("students.id"), nullable=False)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    relationship: Mapped[str] = mapped_column(String(50), nullable=False)
+    phone: Mapped[str] = mapped_column(String(50), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class StudentImport(Base):

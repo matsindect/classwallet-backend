@@ -10,8 +10,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 
 from app.core.di import get_audit_service
-from app.core.pagination import clamp_pagination, paginate
+from app.core.pagination import clamp_pagination
 from app.core.policy import enforce
+from app.core.response import paginated_response
 from app.modules.audit.schemas import AuditLogResponse
 from app.modules.audit.service import AuditService
 from app.modules.auth.dependencies import get_current_user
@@ -33,21 +34,9 @@ async def list_logs(
 ):
     """List audit logs with optional filters and pagination.
 
-    Requires the ``view_audit`` permission. Supports filtering by date
-    range, actor ID, and action type. Returns a paginated response.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: The AuditService instance (injected).
-        from_date: Optional start of date range filter.
-        to_date: Optional end of date range filter.
-        actor: Optional filter by actor (user) ID.
-        action: Optional filter by action type.
-        page: Page number (1-based).
-        pageSize: Number of items per page.
-
-    Returns:
-        A paginated dict containing audit log entries and metadata.
+    Requires the ``audit.read`` permission. Supports filtering by date
+    range, actor ID, and action type. Returns a paginated response
+    wrapped in the standard API envelope.
     """
     enforce(current_user, "audit.read")
     p, ps = clamp_pagination(page, pageSize)
@@ -60,5 +49,5 @@ async def list_logs(
         actor=actor,
         action=action,
     )
-    data = [AuditLogResponse.model_validate(i) for i in items]
-    return paginate(data, total, p, ps)
+    data = [AuditLogResponse.from_model(i).model_dump(by_alias=True) for i in items]
+    return paginated_response(data=data, page=p, page_size=ps, total_count=total)

@@ -1,28 +1,49 @@
 """Pydantic schemas for the reports module.
 
 Defines response models for reporting endpoints, including high-level
-financial overview statistics for a school.
+financial overview statistics for a school.  All schemas inherit from
+CamelModel so field names are serialised as camelCase.
 """
 
-from pydantic import BaseModel
+from app.core.schemas import CamelModel
 
 
-class ReportOverview(BaseModel):
+class GradeCollection(CamelModel):
+    """Collection totals broken down by grade."""
+
+    grade: str
+    collected: float
+    outstanding: float
+
+
+class CollectionTrend(CamelModel):
+    """Daily collection amount for trend charting."""
+
+    date: str
+    amount: float
+
+
+class OverdueStudentSummary(CamelModel):
+    """Top-overdue student with identifying info and balance."""
+
+    student: dict  # {firstName, lastName, studentId, grade}
+    balance: float
+
+
+class ReportOverview(CamelModel):
     """Response schema for the financial overview report.
 
     Provides aggregate statistics about students, invoicing, and
     payment collection for a school within a given time period.
-
-    Attributes:
-        total_students: Total number of enrolled students.
-        total_invoiced: Sum of all invoice amounts.
-        total_collected: Sum of all collected payments.
-        total_outstanding: Sum of remaining balances across invoices.
-        collection_rate: Percentage of invoiced amount that has been collected.
     """
 
-    total_students: int
-    total_invoiced: float
     total_collected: float
-    total_outstanding: float
+    outstanding_balance: float
     collection_rate: float
+    total_students: int
+    paid_students: int
+    partial_students: int
+    unpaid_students: int
+    collection_by_grade: list[GradeCollection]
+    collection_trend: list[CollectionTrend]
+    top_overdue_students: list[OverdueStudentSummary]

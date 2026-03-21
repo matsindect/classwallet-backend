@@ -10,8 +10,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 
 from app.core.di import get_payment_service
-from app.core.pagination import clamp_pagination, paginate
+from app.core.pagination import clamp_pagination
 from app.core.policy import enforce
+from app.core.response import paginated_response, success_response
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.payments.schemas import PaymentResponse, ReconciliationSummary
@@ -33,21 +34,8 @@ async def list_payments(
 ):
     """List payments with optional filters and pagination.
 
-    Requires the ``view_payments`` permission. Supports filtering by status,
+    Requires the ``payments.read`` permission. Supports filtering by status,
     date range, and student ID. Returns a paginated response.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: The PaymentService instance (injected).
-        status: Optional filter by payment status.
-        from_date: Optional start of date range filter.
-        to_date: Optional end of date range filter.
-        studentId: Optional filter by student ID.
-        page: Page number (1-based).
-        pageSize: Number of items per page.
-
-    Returns:
-        A paginated dict containing payment records and metadata.
     """
     enforce(current_user, "payments.read")
     p, ps = clamp_pagination(page, pageSize)
@@ -60,11 +48,11 @@ async def list_payments(
         to_date=to_date,
         student_id=studentId,
     )
-    data = [PaymentResponse.model_validate(pm) for pm in items]
-    return paginate(data, total, p, ps)
+    data = [PaymentResponse.from_model(pm).model_dump(by_alias=True) for pm in items]
+    return paginated_response(data=data, page=p, page_size=ps, total_count=total)
 
 
-@router.get("/reconciliation", response_model=list[ReconciliationSummary])
+@router.get("/reconciliation")
 async def get_reconciliation(
     current_user: UserResponse = Depends(get_current_user),
     service: PaymentService = Depends(get_payment_service),
@@ -73,27 +61,20 @@ async def get_reconciliation(
 ):
     """Get a daily reconciliation summary for a date range.
 
-    Requires the ``manage_payments`` permission. Returns daily aggregates
-    of collected amounts and payment counts, broken down by payment method.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: The PaymentService instance (injected).
-        from_date: Start of the date range (required).
-        to_date: End of the date range (required).
-
-    Returns:
-        A list of ReconciliationSummary objects, one per day.
+    Requires the ``payments.reconcile`` permission. Returns daily aggregates
+    of collected amounts and payment counts.
     """
     enforce(current_user, "payments.reconcile")
-    return await service.get_reconciliation(
+    summaries = await service.get_reconciliation(
         school_id=current_user.school_id,
         from_date=from_date,
         to_date=to_date,
     )
+    data = [ReconciliationSummary(**s).model_dump(by_alias=True) for s in summaries]
+    return success_response(data=data)
 
 
-@router.get("/{payment_id}", response_model=PaymentResponse)
+@router.get("/{payment_id}")
 async def get_payment(
     payment_id: str,
     current_user: UserResponse = Depends(get_current_user),
@@ -101,19 +82,9 @@ async def get_payment(
 ):
     """Retrieve a single payment by its ID.
 
-    Requires the ``view_payments`` permission.
-
-    Args:
-        payment_id: The UUID of the payment to retrieve.
-        current_user: The authenticated user (injected).
-        service: The PaymentService instance (injected).
-
-    Returns:
-        A PaymentResponse with the payment details.
-
-    Raises:
-        NotFoundError: If no payment with the given ID exists.
+    Requires the ``payments.read`` permission.
     """
     enforce(current_user, "payments.read")
     payment = await service.get_payment(payment_id)
-    return PaymentResponse.model_validate(payment)
+    data = PaymentResponse.from_model(payment).model_dump(by_alias=True)
+    return success_response(data=data)

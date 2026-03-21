@@ -1,111 +1,133 @@
 """Pydantic schemas for student request validation and response serialisation.
 
-Provides input schemas for creating and updating students, as well as
-response schemas for individual students and CSV import results.
+All schemas inherit from ``CamelModel`` so field names are serialised as
+camelCase in JSON responses (e.g. ``first_name`` -> ``firstName``).
 """
 
+import json
 from datetime import datetime
 
-from pydantic import BaseModel
+from app.core.schemas import CamelModel
+
+# ---------------------------------------------------------------------------
+# Guardian schemas
+# ---------------------------------------------------------------------------
 
 
-class StudentCreate(BaseModel):
-    """Schema for creating a new student.
+class GuardianCreate(CamelModel):
+    """Schema for creating a guardian alongside a student."""
 
-    All fields are optional so the caller can supply only the known
-    attributes; ``school_id`` is inferred from the authenticated user.
-
-    Attributes:
-        first_name: Student's first name.
-        last_name: Student's last name.
-        email: Optional email address.
-        phone: Optional phone number.
-        grade: Optional grade/class level.
-        status: Optional enrolment status.
-        guardian_name: Optional guardian full name.
-        guardian_email: Optional guardian email.
-        guardian_phone: Optional guardian phone number.
-    """
-
-    first_name: str | None = None
-    last_name: str | None = None
-    email: str | None = None
-    phone: str | None = None
-    grade: str | None = None
-    status: str | None = None
-    guardian_name: str | None = None
-    guardian_email: str | None = None
-    guardian_phone: str | None = None
-
-
-class StudentUpdate(BaseModel):
-    """Schema for partially updating an existing student.
-
-    Only fields that are explicitly set (``exclude_unset=True``) will be
-    applied to the student record.
-
-    Attributes:
-        first_name: Updated first name.
-        last_name: Updated last name.
-        email: Updated email address.
-        phone: Updated phone number.
-        grade: Updated grade/class level.
-        status: Updated enrolment status.
-        guardian_name: Updated guardian full name.
-        guardian_email: Updated guardian email.
-        guardian_phone: Updated guardian phone number.
-    """
-
-    first_name: str | None = None
-    last_name: str | None = None
-    email: str | None = None
-    phone: str | None = None
-    grade: str | None = None
-    status: str | None = None
-    guardian_name: str | None = None
-    guardian_email: str | None = None
-    guardian_phone: str | None = None
-
-
-class StudentResponse(BaseModel):
-    """Response schema returned when reading a student record.
-
-    Populated from the ``Student`` ORM model via ``from_attributes`` mode.
-    """
-
-    id: str
-    school_id: str
     first_name: str
     last_name: str
+    relationship: str
+    phone: str
     email: str | None = None
-    phone: str | None = None
+    is_primary: bool = False
+
+
+class GuardianResponse(CamelModel):
+    """Response schema for a guardian record."""
+
+    id: str
+    first_name: str
+    last_name: str
+    relationship: str
+    phone: str
+    email: str | None = None
+    is_primary: bool
+
+
+# ---------------------------------------------------------------------------
+# Student schemas
+# ---------------------------------------------------------------------------
+
+
+class StudentCreate(CamelModel):
+    """Schema for creating a new student.
+
+    ``guardians`` is optional so the CSV import flow (which does not supply
+    structured guardian objects) continues to work.
+    """
+
+    first_name: str
+    last_name: str
+    grade: str
+    class_name: str | None = None
+    date_of_birth: str | None = None
+    guardians: list[GuardianCreate] | None = None
+
+
+class StudentUpdate(CamelModel):
+    """Schema for partially updating an existing student.
+
+    All fields are optional; only fields explicitly set will be applied.
+    When ``guardians`` is provided the existing guardians are fully replaced.
+    """
+
+    first_name: str | None = None
+    last_name: str | None = None
     grade: str | None = None
+    class_name: str | None = None
+    status: str | None = None
+    date_of_birth: str | None = None
+    guardians: list[GuardianCreate] | None = None
+
+
+class StudentResponse(CamelModel):
+    """Response schema returned when reading a student record."""
+
+    id: str
+    student_id: str | None = None
+    first_name: str
+    last_name: str
+    grade: str | None = None
+    class_name: str | None = None
     status: str
-    guardian_name: str | None = None
-    guardian_email: str | None = None
-    guardian_phone: str | None = None
+    date_of_birth: str | None = None
+    guardians: list[GuardianResponse] = []
+    enrollment_date: str | None = None
+    balance: float = 0.0
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
 
-
-class StudentImportResponse(BaseModel):
-    """Response schema for a CSV student import result.
-
-    Contains row-level statistics and any error details from the import.
-    Populated from the ``StudentImport`` ORM model via ``from_attributes`` mode.
-    """
+class StudentImportResponse(CamelModel):
+    """Response schema for a CSV student import result."""
 
     id: str
-    school_id: str
     file_name: str
     total_rows: int
-    successful_rows: int
-    failed_rows: int
+    success_rows: int
+    error_rows: int
     status: str
-    errors: str | None = None
-    created_by: str
+    errors: list[dict] | None = None
     created_at: datetime
+    completed_at: datetime | None = None
 
-    model_config = {"from_attributes": True}
+    @classmethod
+    def from_import(cls, imp: object) -> "StudentImportResponse":
+        """Build a response from a ``StudentImport`` ORM model.
+
+        Maps the ORM field names (``successful_rows``, ``failed_rows``) to the
+        API contract names (``success_rows``, ``error_rows``) and deserialises
+        the JSON ``errors`` string.
+        """
+        errors_parsed: list[dict] | None = None
+        raw_errors = getattr(imp, "errors", None)
+        if raw_errors:
+            try:
+                errors_parsed = json.loads(raw_errors)
+            except (json.JSONDecodeError, TypeError):
+                errors_parsed = None
+
+        return cls(
+            id=imp.id,  # type: ignore[union-attr]
+            file_name=imp.file_name,  # type: ignore[union-attr]
+            total_rows=imp.total_rows,  # type: ignore[union-attr]
+            success_rows=imp.successful_rows,  # type: ignore[union-attr]
+            error_rows=imp.failed_rows,  # type: ignore[union-attr]
+            status=imp.status,  # type: ignore[union-attr]
+            errors=errors_parsed,
+            created_at=imp.created_at,  # type: ignore[union-attr]
+            completed_at=getattr(imp, "completed_at", None),
+        )

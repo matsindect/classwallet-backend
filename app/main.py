@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.errors import AppError, app_error_handler
+from app.core.errors import AppError, app_error_handler, unhandled_error_handler
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIdMiddleware
 from app.modules.audit.router import router as audit_router
@@ -89,6 +89,7 @@ app.add_middleware(RequestIdMiddleware)
 
 # --- Exception handlers ---
 app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(Exception, unhandled_error_handler)
 
 # --- Routers ---
 app.include_router(auth_router)

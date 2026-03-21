@@ -11,9 +11,9 @@ from app.core.database import Base
 # Import all models so Alembic can detect them
 from app.modules.auth.models import User  # noqa: F401
 from app.modules.school.models import School  # noqa: F401
-from app.modules.students.models import Student, StudentImport  # noqa: F401
-from app.modules.fees.models import FeeStructure, StudentInvoice  # noqa: F401
-from app.modules.payments.models import Payment  # noqa: F401
+from app.modules.students.models import Guardian, Student, StudentImport  # noqa: F401
+from app.modules.fees.models import FeeLineItem, FeeStructure, StudentInvoice  # noqa: F401
+from app.modules.payments.models import Payment, PaymentTimeline  # noqa: F401
 from app.modules.reminders.models import ReminderConfig, ReminderHistory  # noqa: F401
 from app.modules.audit.models import AuditLog  # noqa: F401
 from app.modules.rbac.models import Permission, Role, RolePermission  # noqa: F401

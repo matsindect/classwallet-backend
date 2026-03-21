@@ -68,7 +68,7 @@ async def staff_token(seed_data):
             "/auth/login",
             json={"email": "staff@test.com", "password": "password123"},
         )
-        return resp.json()["token"]
+        return resp.json()["data"]["token"]
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_staff_cannot_manage_users(client: AsyncClient, staff_token):
     headers = {"Authorization": f"Bearer {staff_token}"}
     resp = await client.get("/school/users", headers=headers)
     assert resp.status_code == 403
-    assert resp.json()["code"] == "FORBIDDEN"
+    assert resp.json()["error"]["code"] == "FORBIDDEN"
 
 
 @pytest.mark.asyncio

@@ -1,14 +1,14 @@
 """SQLAlchemy models for the payments module.
 
-Defines the Payment ORM model representing financial transactions
-recorded against student invoices within a school.
+Defines the Payment and PaymentTimeline ORM models representing financial
+transactions recorded against student invoices within a school.
 """
 
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -17,24 +17,9 @@ class Payment(Base):
     """Represents a single payment transaction.
 
     Each payment is linked to a school, student, and invoice. It records the
-    amount paid, payment method, status, and an optional reference or notes
-    field. Timestamps track when the payment was made and when the record
-    was created or last updated.
-
-    Attributes:
-        id: UUID primary key.
-        school_id: Foreign key to the school this payment belongs to.
-        student_id: Foreign key to the student who made the payment.
-        invoice_id: Foreign key to the invoice being paid.
-        amount: The monetary amount of the payment.
-        method: Payment method (e.g., "cash", "card", "bank_transfer").
-        reference: Optional external reference number or identifier.
-        status: Current status of the payment (default "completed").
-        notes: Optional free-text notes about the payment.
-        paid_at: Timestamp when the payment was made.
-        created_by: Foreign key to the user who recorded the payment.
-        created_at: Timestamp when the record was created.
-        updated_at: Timestamp when the record was last updated.
+    amount paid, payment method/channel, status, payer details, and an optional
+    reference or notes field. Timestamps track when the payment was made and
+    when the record was created or last updated.
     """
 
     __tablename__ = "payments"
@@ -47,6 +32,14 @@ class Payment(Base):
     )
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     method: Mapped[str] = mapped_column(String(50), default="cash")
+    channel: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payer_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    payer_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    payer_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="completed")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -61,4 +54,28 @@ class Payment(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+
+    # Relationships
+    student = relationship("Student", lazy="selectin")
+    timeline = relationship(
+        "PaymentTimeline",
+        backref="payment",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="PaymentTimeline.timestamp",
+    )
+
+
+class PaymentTimeline(Base):
+    """Represents a timeline event for a payment."""
+
+    __tablename__ = "payment_timeline"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    payment_id: Mapped[str] = mapped_column(String(36), ForeignKey("payments.id"), nullable=False)
+    event: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

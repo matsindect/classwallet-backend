@@ -2,7 +2,8 @@
 
 Covers successful and failed login, the ``/auth/me`` endpoint (with and
 without a token), logout, and verification that a token is invalidated
-after logout.
+after logout.  All responses use the uniform envelope:
+``{success, data, error, meta}``.
 """
 
 import pytest
@@ -11,28 +12,30 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient, seed_data):
-    """Verify that valid credentials return a 200 with a token and user info."""
+    """Verify that valid credentials return a 200 with envelope + token."""
     resp = await client.post(
         "/auth/login",
         json={"email": "admin@test.com", "password": "password123"},
     )
     assert resp.status_code == 200
-    data = resp.json()
-    assert "token" in data
-    assert data["user"]["email"] == "admin@test.com"
-    assert data["user"]["role"] == "ADMIN"
+    body = resp.json()
+    assert body["success"] is True
+    assert "token" in body["data"]
+    assert body["data"]["user"]["email"] == "admin@test.com"
+    assert body["data"]["user"]["role"] == "ADMIN"
 
 
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient, seed_data):
-    """Verify that an incorrect password returns 401 with AUTH_ERROR code."""
+    """Verify that an incorrect password returns 401 with UNAUTHORIZED code."""
     resp = await client.post(
         "/auth/login",
         json={"email": "admin@test.com", "password": "wrong"},
     )
     assert resp.status_code == 401
-    data = resp.json()
-    assert data["code"] == "AUTH_ERROR"
+    body = resp.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == "UNAUTHORIZED"
 
 
 @pytest.mark.asyncio
@@ -40,8 +43,9 @@ async def test_me(client: AsyncClient, auth_headers):
     """Verify that ``/auth/me`` returns the authenticated user's profile."""
     resp = await client.get("/auth/me", headers=auth_headers)
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["email"] == "admin@test.com"
+    body = resp.json()
+    assert body["success"] is True
+    assert body["data"]["email"] == "admin@test.com"
 
 
 @pytest.mark.asyncio
@@ -53,9 +57,12 @@ async def test_me_no_token(client: AsyncClient, seed_data):
 
 @pytest.mark.asyncio
 async def test_logout(client: AsyncClient, auth_headers):
-    """Verify that logout returns 204 No Content."""
+    """Verify that logout returns 200 with success envelope."""
     resp = await client.post("/auth/logout", headers=auth_headers)
-    assert resp.status_code == 204
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    assert body["data"] is None
 
 
 @pytest.mark.asyncio
@@ -66,12 +73,12 @@ async def test_token_invalidated_after_logout(client: AsyncClient, seed_data):
         "/auth/login",
         json={"email": "admin@test.com", "password": "password123"},
     )
-    token = resp.json()["token"]
+    token = resp.json()["data"]["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     # Logout
     resp = await client.post("/auth/logout", headers=headers)
-    assert resp.status_code == 204
+    assert resp.status_code == 200
 
     # Token should now be invalid (token version incremented)
     resp = await client.get("/auth/me", headers=headers)
