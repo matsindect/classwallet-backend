@@ -8,11 +8,13 @@ audit system.
 import csv
 import io
 import json
+from datetime import UTC, datetime
 
 from app.core.errors import NotFoundError, ValidationError
 from app.modules.audit.repository import AuditRepository
-from app.modules.students.models import Student, StudentImport
+from app.modules.students.models import Guardian, Student, StudentImport
 from app.modules.students.repository import StudentRepository
+from app.modules.students.schemas import StudentCreate, StudentUpdate
 
 
 class StudentService:
@@ -40,17 +42,6 @@ class StudentService:
 
         Converts page-based parameters to offset/limit before delegating
         to the repository.
-
-        Args:
-            school_id: Scope results to this school.
-            page: 1-based page number.
-            page_size: Number of records per page.
-            search: Optional substring search on student names.
-            grade: Optional exact-match grade filter.
-            status: Optional exact-match status filter.
-
-        Returns:
-            A tuple of (list of ``Student`` objects, total matching count).
         """
         offset = (page - 1) * page_size
         return await self.repo.list_students(
@@ -62,18 +53,36 @@ class StudentService:
             status=status,
         )
 
-    async def create_student(self, school_id: str, data: dict, actor_id: str) -> Student:
-        """Create a new student and log the action to the audit trail.
+    async def create_student(self, school_id: str, data: StudentCreate, actor_id: str) -> Student:
+        """Create a new student (with optional guardians) and log the action.
 
-        Args:
-            school_id: The school the student belongs to.
-            data: Dictionary of student field values.
-            actor_id: ID of the user performing the action.
-
-        Returns:
-            The newly created ``Student`` instance.
+        Generates a ``student_id`` display identifier and sets ``enrollment_date``
+        to today if not provided.
         """
-        student = Student(school_id=school_id, **data)
+        # Build the student model from the schema, excluding guardians
+        student_fields = data.model_dump(exclude={"guardians"}, exclude_unset=True)
+        student = Student(school_id=school_id, **student_fields)
+
+        # Generate a display student_id
+        student.student_id = await self._generate_student_id(school_id)
+
+        # Default enrollment_date to today
+        if not student.enrollment_date:
+            student.enrollment_date = datetime.now(UTC).strftime("%Y-%m-%d")
+
+        # Create guardian objects if provided
+        if data.guardians:
+            for g in data.guardians:
+                guardian = Guardian(
+                    first_name=g.first_name,
+                    last_name=g.last_name,
+                    relationship=g.relationship,
+                    phone=g.phone,
+                    email=g.email,
+                    is_primary=g.is_primary,
+                )
+                student.guardians.append(guardian)
+
         student = await self.repo.create_student(student)
         await self.audit_repo.log(
             school_id=school_id,
@@ -85,25 +94,24 @@ class StudentService:
         return student
 
     async def update_student(
-        self, student_id: str, data: dict, actor_id: str, school_id: str
+        self, student_id: str, data: StudentUpdate, actor_id: str, school_id: str
     ) -> Student:
         """Partially update a student record and log the action.
 
-        Args:
-            student_id: UUID of the student to update.
-            data: Dictionary of fields to update.
-            actor_id: ID of the user performing the action.
-            school_id: School context for audit logging.
-
-        Returns:
-            The updated ``Student`` instance.
-
-        Raises:
-            NotFoundError: If no student matches *student_id*.
+        When ``guardians`` is provided in the update payload, all existing
+        guardians are replaced with the new set (full replacement).
         """
-        student = await self.repo.update_student(student_id, data)
+        guardians_data = data.guardians
+        update_fields = data.model_dump(exclude={"guardians"}, exclude_unset=True)
+
+        student = await self.repo.update_student(student_id, update_fields)
         if not student:
             raise NotFoundError(message="Student not found")
+
+        # Replace guardians if provided
+        if guardians_data is not None:
+            await self.repo.replace_guardians(student, guardians_data)
+
         await self.audit_repo.log(
             school_id=school_id,
             actor_id=actor_id,
@@ -123,19 +131,6 @@ class StudentService:
         ``email``, ``phone``, ``guardian_name``, ``guardian_email``,
         ``guardian_phone``.  Rows missing ``first_name`` or ``last_name``
         are skipped and recorded as failures.
-
-        Args:
-            school_id: The school to import students into.
-            file_content: Raw bytes of the uploaded CSV file (UTF-8 or
-                UTF-8-BOM encoded).
-            file_name: Original file name for record-keeping.
-            actor_id: ID of the user who initiated the import.
-
-        Returns:
-            A ``StudentImport`` record summarising the import outcome.
-
-        Raises:
-            ValidationError: If the CSV is empty or contains no data rows.
         """
         text = file_content.decode("utf-8-sig")
         reader = csv.DictReader(io.StringIO(text))
@@ -161,10 +156,16 @@ class StudentService:
                 email=row.get("email", "").strip() or None,
                 phone=row.get("phone", "").strip() or None,
                 grade=row.get("grade", "").strip() or None,
+                class_name=row.get("class_name", "").strip() or None,
+                date_of_birth=row.get("date_of_birth", "").strip() or None,
                 guardian_name=row.get("guardian_name", "").strip() or None,
                 guardian_email=row.get("guardian_email", "").strip() or None,
                 guardian_phone=row.get("guardian_phone", "").strip() or None,
+                enrollment_date=datetime.now(UTC).strftime("%Y-%m-%d"),
             )
+            # Generate a display student_id for each imported student
+            student.student_id = await self._generate_student_id(school_id)
+
             try:
                 await self.repo.create_student(student)
                 success += 1
@@ -198,12 +199,15 @@ class StudentService:
         return imp
 
     async def list_imports(self, school_id: str) -> list[StudentImport]:
-        """Return all import history records for a school.
-
-        Args:
-            school_id: The school whose import history to retrieve.
-
-        Returns:
-            A list of ``StudentImport`` records, newest first.
-        """
+        """Return all import history records for a school."""
         return await self.repo.list_imports(school_id)
+
+    async def _generate_student_id(self, school_id: str) -> str:
+        """Generate a sequential display student ID.
+
+        Format: ``STD-YYYY-NNN`` where NNN is zero-padded based on the
+        current count of students in the school.
+        """
+        count = await self.repo.count_students(school_id)
+        year = datetime.now(UTC).strftime("%Y")
+        return f"STD-{year}-{count + 1:03d}"

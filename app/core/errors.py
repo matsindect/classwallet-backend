@@ -1,34 +1,22 @@
 """Application-specific error hierarchy and global exception handler.
 
 Defines a base ``AppError`` and specialised subclasses for common HTTP error
-scenarios.  Each subclass encodes a fixed status code and a machine-readable
-error ``code`` string.  The ``app_error_handler`` function is registered on
-the FastAPI app so that any ``AppError`` raised inside a route is
-automatically serialised to a consistent JSON envelope.
+scenarios.  The ``app_error_handler`` wraps every error in the uniform
+``{success, data, error, meta}`` envelope expected by the frontend.
 """
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.core.response import error_response
+
 
 class AppError(Exception):
-    """Base application error.
-
-    All domain-specific errors inherit from this class.  It carries a
-    machine-readable ``code``, a human-readable ``message``, an HTTP
-    ``status_code``, and optional ``details`` for field-level validation
-    information.
-
-    Attributes:
-        code: Short machine-readable error identifier (e.g. ``"AUTH_ERROR"``).
-        message: Human-readable description of the error.
-        status_code: HTTP status code to return to the client.
-        details: Optional mapping of field names to lists of error messages.
-    """
+    """Base application error."""
 
     def __init__(
         self,
-        code: str = "APP_ERROR",
+        code: str = "INTERNAL_ERROR",
         message: str = "An unexpected error occurred",
         status_code: int = 500,
         details: dict[str, list[str]] | None = None,
@@ -48,7 +36,7 @@ class AuthError(AppError):
         message: str = "Authentication failed",
         details: dict[str, list[str]] | None = None,
     ):
-        super().__init__(code="AUTH_ERROR", message=message, status_code=401, details=details)
+        super().__init__(code="UNAUTHORIZED", message=message, status_code=401, details=details)
 
 
 class ForbiddenError(AppError):
@@ -74,14 +62,14 @@ class NotFoundError(AppError):
 
 
 class ValidationError(AppError):
-    """Input validation failure (HTTP 422 Unprocessable Entity)."""
+    """Input validation failure (HTTP 400 Bad Request)."""
 
     def __init__(
         self,
         message: str = "Validation failed",
         details: dict[str, list[str]] | None = None,
     ):
-        super().__init__(code="VALIDATION_ERROR", message=message, status_code=422, details=details)
+        super().__init__(code="VALIDATION_ERROR", message=message, status_code=400, details=details)
 
 
 class ConflictError(AppError):
@@ -96,23 +84,23 @@ class ConflictError(AppError):
 
 
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
-    """Global exception handler registered on the FastAPI application.
+    """Global exception handler — wraps errors in the uniform envelope."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        ),
+    )
 
-    Converts any ``AppError`` into a JSON response with the structure::
 
-        {"code": "...", "message": "...", "details": {...}}
-
-    The ``details`` key is included only when the error carries field-level
-    information.
-
-    Args:
-        _request: The incoming Starlette request (unused).
-        exc: The ``AppError`` instance that was raised.
-
-    Returns:
-        A ``JSONResponse`` with the appropriate HTTP status code and body.
-    """
-    body: dict = {"code": exc.code, "message": exc.message}
-    if exc.details:
-        body["details"] = exc.details
-    return JSONResponse(status_code=exc.status_code, content=body)
+async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all for unhandled exceptions — returns INTERNAL_ERROR."""
+    return JSONResponse(
+        status_code=500,
+        content=error_response(
+            code="INTERNAL_ERROR",
+            message="An unexpected error occurred",
+        ),
+    )

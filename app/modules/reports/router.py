@@ -12,16 +12,16 @@ from fastapi.responses import StreamingResponse
 
 from app.core.di import get_report_service
 from app.core.policy import enforce
+from app.core.response import error_response, success_response
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.fees.schemas import StudentInvoiceResponse
-from app.modules.reports.schemas import ReportOverview
 from app.modules.reports.service import ReportService
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
-@router.get("/overview", response_model=ReportOverview)
+@router.get("/overview")
 async def get_overview(
     current_user: UserResponse = Depends(get_current_user),
     service: ReportService = Depends(get_report_service),
@@ -30,24 +30,16 @@ async def get_overview(
 ):
     """Get a financial overview report for the current user's school.
 
-    Requires the ``view_reports`` permission. Returns aggregate statistics
+    Requires the ``reports.read`` permission. Returns aggregate statistics
     including total students, invoiced/collected/outstanding amounts, and
     the collection rate.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: The ReportService instance (injected).
-        from_date: Start of the date range (required).
-        to_date: End of the date range (required).
-
-    Returns:
-        A ReportOverview with aggregate financial statistics.
     """
     enforce(current_user, "reports.read")
-    return await service.get_overview(current_user.school_id, from_date, to_date)
+    overview = await service.get_overview(current_user.school_id, from_date, to_date)
+    return success_response(data=overview)
 
 
-@router.get("/outstanding", response_model=list[StudentInvoiceResponse])
+@router.get("/outstanding")
 async def get_outstanding(
     current_user: UserResponse = Depends(get_current_user),
     service: ReportService = Depends(get_report_service),
@@ -56,21 +48,13 @@ async def get_outstanding(
 ):
     """List all outstanding invoices for the current user's school.
 
-    Requires the ``view_reports`` permission. Returns invoices that
+    Requires the ``reports.read`` permission. Returns invoices that
     still have an unpaid balance.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: The ReportService instance (injected).
-        from_date: Start of the date range (required).
-        to_date: End of the date range (required).
-
-    Returns:
-        A list of StudentInvoiceResponse objects for outstanding invoices.
     """
     enforce(current_user, "reports.read")
     invoices = await service.get_outstanding(current_user.school_id)
-    return [StudentInvoiceResponse.model_validate(i) for i in invoices]
+    data = [StudentInvoiceResponse.model_validate(i).model_dump(by_alias=True) for i in invoices]
+    return success_response(data=data)
 
 
 @router.get("/export")
@@ -78,22 +62,27 @@ async def export_report(
     current_user: UserResponse = Depends(get_current_user),
     service: ReportService = Depends(get_report_service),
     reportType: str = Query(...),  # noqa: N803
+    from_date: datetime = Query(..., alias="from"),
+    to_date: datetime = Query(..., alias="to"),
 ):
     """Export school data as a downloadable CSV file.
 
-    Requires the ``view_reports`` permission. Supports report types:
-    "students", "invoices", and "outstanding".
+    Requires the ``reports.export`` permission. Supports report types:
+    "collections", "outstanding", and "enrolment".
 
-    Args:
-        current_user: The authenticated user (injected).
-        service: The ReportService instance (injected).
-        reportType: The type of report to export.
-
-    Returns:
-        A StreamingResponse with CSV content and appropriate download headers.
+    On success returns a raw CSV stream. On error falls back to
+    the standard JSON error envelope.
     """
     enforce(current_user, "reports.export")
-    csv_content = await service.export_csv(current_user.school_id, reportType)
+    try:
+        csv_content = await service.export_csv(
+            current_user.school_id,
+            reportType,
+            from_date,
+            to_date,
+        )
+    except ValueError as exc:
+        return error_response(code="VALIDATION_ERROR", message=str(exc))
 
     return StreamingResponse(
         iter([csv_content]),

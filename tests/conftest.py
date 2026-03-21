@@ -174,7 +174,7 @@ async def auth_token(client: AsyncClient, seed_data) -> str:
         "/auth/login",
         json={"email": "admin@test.com", "password": "password123"},
     )
-    return resp.json()["token"]
+    return resp.json()["data"]["token"]
 
 
 @pytest_asyncio.fixture

@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -29,7 +29,10 @@ class AuditLog(Base):
         entity: The type of entity affected (e.g., "payment", "reminder_config").
         entity_id: Optional identifier of the specific entity affected.
         metadata_json: Optional JSON string with additional context.
+        ip_address: IP address of the client that triggered the action.
+        user_agent: User-Agent header of the client that triggered the action.
         timestamp: When the action occurred.
+        actor: Relationship to the User who performed the action.
     """
 
     __tablename__ = "audit_logs"
@@ -43,6 +46,16 @@ class AuditLog(Base):
     entity: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+    actor = relationship(
+        "User",
+        foreign_keys=[actor_id],
+        primaryjoin="AuditLog.actor_id == User.id",
+        lazy="selectin",
+        viewonly=True,
     )

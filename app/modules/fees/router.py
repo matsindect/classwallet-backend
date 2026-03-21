@@ -2,49 +2,46 @@
 
 Exposes endpoints for fee structure CRUD, publishing a fee structure,
 generating invoices from a published structure, and listing invoices.
-All endpoints require authentication and the ``manage_fees`` permission.
+All endpoints require authentication and appropriate permissions.
+
+All responses are wrapped in the uniform ``success_response`` envelope.
 """
 
 from fastapi import APIRouter, Depends, Query
 
 from app.core.di import get_fee_service
 from app.core.policy import enforce
+from app.core.response import success_response
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.schemas import UserResponse
-from app.modules.fees.schemas import (
-    FeeStructureCreate,
-    FeeStructureResponse,
-    FeeStructureUpdate,
-    InvoiceGenerationResponse,
-    StudentInvoiceResponse,
-)
+from app.modules.fees.schemas import FeeStructureCreate, FeeStructureUpdate
 from app.modules.fees.service import FeeService
 
 router = APIRouter(prefix="/fees", tags=["Fees"])
 
 
-@router.get("/structures", response_model=list[FeeStructureResponse])
+@router.get("/structures")
 async def list_structures(
     current_user: UserResponse = Depends(get_current_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """List all fee structures for the current user's school.
 
-    Requires the ``manage_fees`` permission.
+    Requires the ``fees.read`` permission.
 
     Args:
         current_user: The authenticated user (injected).
         service: FeeService instance (injected).
 
     Returns:
-        A list of ``FeeStructureResponse`` objects.
+        A success envelope containing a list of fee structures.
     """
     enforce(current_user, "fees.read")
     structures = await service.list_structures(current_user.school_id)
-    return [FeeStructureResponse.model_validate(s) for s in structures]
+    return success_response(data=structures)
 
 
-@router.post("/structures", response_model=FeeStructureResponse, status_code=201)
+@router.post("/structures", status_code=201)
 async def create_structure(
     body: FeeStructureCreate,
     current_user: UserResponse = Depends(get_current_user),
@@ -52,7 +49,7 @@ async def create_structure(
 ):
     """Create a new fee structure for the current user's school.
 
-    Requires the ``manage_fees`` permission.
+    Requires the ``fees.create`` permission.
 
     Args:
         body: Fee structure creation payload.
@@ -60,18 +57,19 @@ async def create_structure(
         service: FeeService instance (injected).
 
     Returns:
-        The created fee structure as a ``FeeStructureResponse``.
+        A success envelope containing the created fee structure.
     """
     enforce(current_user, "fees.create")
+    data = body.model_dump(exclude_unset=True, by_alias=False)
     structure = await service.create_structure(
         school_id=current_user.school_id,
-        data=body.model_dump(exclude_unset=True),
+        data=data,
         actor_id=current_user.id,
     )
-    return FeeStructureResponse.model_validate(structure)
+    return success_response(data=structure)
 
 
-@router.patch("/structures/{structure_id}", response_model=FeeStructureResponse)
+@router.patch("/structures/{structure_id}")
 async def update_structure(
     structure_id: str,
     body: FeeStructureUpdate,
@@ -80,7 +78,8 @@ async def update_structure(
 ):
     """Partially update an existing fee structure.
 
-    Requires the ``manage_fees`` permission.
+    Only DRAFT structures can be updated. Requires the ``fees.update``
+    permission.
 
     Args:
         structure_id: UUID of the fee structure to update.
@@ -89,22 +88,24 @@ async def update_structure(
         service: FeeService instance (injected).
 
     Returns:
-        The updated fee structure as a ``FeeStructureResponse``.
+        A success envelope containing the updated fee structure.
 
     Raises:
         NotFoundError: If the fee structure does not exist.
+        ConflictError: If the fee structure is already published.
     """
     enforce(current_user, "fees.update")
+    data = body.model_dump(exclude_unset=True, by_alias=False)
     structure = await service.update_structure(
         structure_id=structure_id,
-        data=body.model_dump(exclude_unset=True),
+        data=data,
         actor_id=current_user.id,
         school_id=current_user.school_id,
     )
-    return FeeStructureResponse.model_validate(structure)
+    return success_response(data=structure)
 
 
-@router.post("/structures/{structure_id}/publish", response_model=FeeStructureResponse)
+@router.post("/structures/{structure_id}/publish")
 async def publish_structure(
     structure_id: str,
     current_user: UserResponse = Depends(get_current_user),
@@ -112,7 +113,7 @@ async def publish_structure(
 ):
     """Publish a fee structure, making it available for invoice generation.
 
-    Requires the ``manage_fees`` permission.
+    Requires the ``fees.publish`` permission.
 
     Args:
         structure_id: UUID of the fee structure to publish.
@@ -120,10 +121,11 @@ async def publish_structure(
         service: FeeService instance (injected).
 
     Returns:
-        The published fee structure as a ``FeeStructureResponse``.
+        A success envelope containing the published fee structure.
 
     Raises:
         NotFoundError: If the fee structure does not exist.
+        ConflictError: If already published.
     """
     enforce(current_user, "fees.publish")
     structure = await service.publish_structure(
@@ -131,10 +133,10 @@ async def publish_structure(
         actor_id=current_user.id,
         school_id=current_user.school_id,
     )
-    return FeeStructureResponse.model_validate(structure)
+    return success_response(data=structure)
 
 
-@router.post("/structures/{structure_id}/invoices", response_model=InvoiceGenerationResponse)
+@router.post("/structures/{structure_id}/generate-invoices")
 async def generate_invoices(
     structure_id: str,
     current_user: UserResponse = Depends(get_current_user),
@@ -142,9 +144,9 @@ async def generate_invoices(
 ):
     """Generate invoices for all eligible students from a fee structure.
 
-    The fee structure must be published. If it targets a specific grade,
-    only students in that grade are invoiced; otherwise all students in
-    the school receive an invoice. Requires the ``manage_fees`` permission.
+    The fee structure must be published. Students are selected based on the
+    grades defined in the fee structure. Requires the ``invoices.create``
+    permission.
 
     Args:
         structure_id: UUID of the published fee structure.
@@ -152,7 +154,7 @@ async def generate_invoices(
         service: FeeService instance (injected).
 
     Returns:
-        An ``InvoiceGenerationResponse`` with the count of created invoices.
+        A success envelope containing ``{"count": N}``.
 
     Raises:
         NotFoundError: If the fee structure does not exist.
@@ -164,10 +166,13 @@ async def generate_invoices(
         actor_id=current_user.id,
         school_id=current_user.school_id,
     )
-    return InvoiceGenerationResponse(count=count)
+    return success_response(data={"count": count})
 
 
-@router.get("/invoices", response_model=list[StudentInvoiceResponse])
+# TODO: The API contract specifies GET /invoices as a top-level route.
+# For now, invoices are served under /fees/invoices. A separate router
+# or main.py registration may be needed to serve GET /invoices directly.
+@router.get("/invoices")
 async def list_invoices(
     current_user: UserResponse = Depends(get_current_user),
     service: FeeService = Depends(get_fee_service),
@@ -175,7 +180,7 @@ async def list_invoices(
 ):
     """List invoices, optionally filtered by student.
 
-    Requires the ``manage_fees`` permission.
+    Requires the ``invoices.read`` permission.
 
     Args:
         current_user: The authenticated user (injected).
@@ -183,8 +188,8 @@ async def list_invoices(
         studentId: Optional student UUID to filter invoices.
 
     Returns:
-        A list of ``StudentInvoiceResponse`` objects.
+        A success envelope containing a list of invoice objects.
     """
     enforce(current_user, "invoices.read")
     invoices = await service.list_invoices(current_user.school_id, studentId)
-    return [StudentInvoiceResponse.model_validate(i) for i in invoices]
+    return success_response(data=invoices)

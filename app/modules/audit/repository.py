@@ -36,6 +36,8 @@ class AuditRepository:
         entity: str,
         entity_id: str | None = None,
         metadata: dict | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> AuditLog:
         """Create and persist a new audit log entry.
 
@@ -46,6 +48,8 @@ class AuditRepository:
             entity: The type of entity affected (e.g., "payment").
             entity_id: Optional identifier of the specific entity.
             metadata: Optional dict of extra context, serialized as JSON.
+            ip_address: Optional client IP address.
+            user_agent: Optional client User-Agent string.
 
         Returns:
             The persisted AuditLog entry.
@@ -57,6 +61,8 @@ class AuditRepository:
             entity=entity,
             entity_id=entity_id,
             metadata_json=json.dumps(metadata) if metadata else None,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
         self.session.add(entry)
         await self.session.flush()

@@ -2,12 +2,46 @@
 
 Orchestrates CRUD operations on reminder configurations and retrieval
 of reminder history, with audit logging for create and update actions.
+Handles JSON serialization of list fields for storage.
 """
+
+import json
 
 from app.core.errors import NotFoundError
 from app.modules.audit.repository import AuditRepository
 from app.modules.reminders.models import ReminderConfig, ReminderHistory
 from app.modules.reminders.repository import ReminderRepository
+
+
+def _serialize_list_fields(data: dict) -> dict:
+    """Convert list fields to JSON strings for database storage.
+
+    Transforms ``channels``, ``grades``, and ``student_ids`` from Python
+    lists into JSON-encoded strings stored in their ``*_json`` columns.
+    Also maps ``days_offset`` to both the new and legacy columns, and
+    ``message_template`` to both the new and legacy columns.
+    """
+    out = dict(data)
+
+    if "channels" in out:
+        out["channels_json"] = json.dumps(out.pop("channels"))
+
+    if "grades" in out:
+        value = out.pop("grades")
+        out["grades_json"] = json.dumps(value) if value is not None else None
+
+    if "student_ids" in out:
+        value = out.pop("student_ids")
+        out["student_ids_json"] = json.dumps(value) if value is not None else None
+
+    # Sync new column to legacy column for backward compatibility
+    if "days_offset" in out:
+        out["days_before_due"] = out["days_offset"]
+
+    if "message_template" in out:
+        out["template"] = out["message_template"]
+
+    return out
 
 
 class ReminderService:
@@ -40,8 +74,8 @@ class ReminderService:
     async def create_config(self, school_id: str, data: dict, actor_id: str) -> ReminderConfig:
         """Create a new reminder configuration.
 
-        Persists the configuration and writes an audit log entry recording
-        the creation.
+        Serializes list fields to JSON before persisting, and writes
+        an audit log entry recording the creation.
 
         Args:
             school_id: The school to associate the config with.
@@ -51,7 +85,8 @@ class ReminderService:
         Returns:
             The newly created ReminderConfig.
         """
-        config = ReminderConfig(school_id=school_id, **data)
+        db_data = _serialize_list_fields(data)
+        config = ReminderConfig(school_id=school_id, **db_data)
         config = await self.repo.create_config(config)
         await self.audit_repo.log(
             school_id=school_id,
@@ -67,8 +102,8 @@ class ReminderService:
     ) -> ReminderConfig:
         """Update an existing reminder configuration.
 
-        Applies partial updates and writes an audit log entry recording
-        the modification.
+        Serializes list fields to JSON before applying partial updates,
+        and writes an audit log entry recording the modification.
 
         Args:
             config_id: The UUID of the config to update.
@@ -82,7 +117,8 @@ class ReminderService:
         Raises:
             NotFoundError: If no config with the given ID exists.
         """
-        config = await self.repo.update_config(config_id, data)
+        db_data = _serialize_list_fields(data)
+        config = await self.repo.update_config(config_id, db_data)
         if not config:
             raise NotFoundError(message="Reminder config not found")
         await self.audit_repo.log(

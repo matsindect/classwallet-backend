@@ -6,6 +6,7 @@ via :class:`AuditRepository`.
 """
 
 import json
+from datetime import UTC, datetime
 
 from app.core.errors import AuthError, NotFoundError
 from app.core.security import create_access_token, hash_password, verify_password
@@ -47,6 +48,11 @@ class AuthService:
             raise AuthError(message="Invalid email or password")
         if not user.is_active:
             raise AuthError(message="Account is deactivated")
+
+        # Record the login timestamp
+        user.last_login_at = datetime.now(UTC)
+        await self.repo.session.commit()
+        await self.repo.session.refresh(user)
 
         token = create_access_token(
             subject=json.dumps({"user_id": user.id, "tv": user.token_version})

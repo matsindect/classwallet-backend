@@ -1,13 +1,15 @@
 """Data-access layer for fee structures and student invoices.
 
 Provides async CRUD operations and query methods against the
-``fee_structures`` and ``student_invoices`` tables via SQLAlchemy.
+``fee_structures``, ``fee_line_items``, and ``student_invoices`` tables
+via SQLAlchemy.
 """
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.modules.fees.models import FeeStructure, StudentInvoice
+from app.modules.fees.models import FeeLineItem, FeeStructure, StudentInvoice
 
 
 class FeeRepository:
@@ -20,6 +22,10 @@ class FeeRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    # ------------------------------------------------------------------
+    # Fee structures
+    # ------------------------------------------------------------------
+
     async def list_structures(self, school_id: str) -> list[FeeStructure]:
         """Return all fee structures for a school, newest first.
 
@@ -28,10 +34,11 @@ class FeeRepository:
 
         Returns:
             A list of ``FeeStructure`` objects ordered by descending
-            ``created_at``.
+            ``created_at``, with ``line_items`` eagerly loaded.
         """
         result = await self.session.execute(
             select(FeeStructure)
+            .options(selectinload(FeeStructure.line_items))
             .where(FeeStructure.school_id == school_id)
             .order_by(FeeStructure.created_at.desc())
         )
@@ -44,10 +51,13 @@ class FeeRepository:
             structure_id: The UUID of the fee structure.
 
         Returns:
-            The ``FeeStructure`` if found, otherwise ``None``.
+            The ``FeeStructure`` if found (with line_items loaded),
+            otherwise ``None``.
         """
         result = await self.session.execute(
-            select(FeeStructure).where(FeeStructure.id == structure_id)
+            select(FeeStructure)
+            .options(selectinload(FeeStructure.line_items))
+            .where(FeeStructure.id == structure_id)
         )
         return result.scalar_one_or_none()
 
@@ -68,6 +78,8 @@ class FeeRepository:
         """Apply a partial update to an existing fee structure.
 
         Only keys present in *data* whose values are not ``None`` are written.
+        The special key ``line_items`` is skipped here — line item replacement
+        is handled separately in ``replace_line_items``.
 
         Args:
             structure_id: The UUID of the fee structure to update.
@@ -77,16 +89,42 @@ class FeeRepository:
             The updated ``FeeStructure``, or ``None`` if not found.
         """
         result = await self.session.execute(
-            select(FeeStructure).where(FeeStructure.id == structure_id)
+            select(FeeStructure)
+            .options(selectinload(FeeStructure.line_items))
+            .where(FeeStructure.id == structure_id)
         )
         structure = result.scalar_one_or_none()
         if not structure:
             return None
         for key, value in data.items():
+            if key == "line_items":
+                continue
             if hasattr(structure, key) and value is not None:
                 setattr(structure, key, value)
         await self.session.flush()
         return structure
+
+    async def replace_line_items(
+        self, structure: FeeStructure, new_items: list[FeeLineItem]
+    ) -> None:
+        """Delete existing line items and insert replacements.
+
+        Args:
+            structure: The parent ``FeeStructure``.
+            new_items: The new ``FeeLineItem`` objects to associate.
+        """
+        # Remove old items
+        for item in list(structure.line_items):
+            await self.session.delete(item)
+        await self.session.flush()
+
+        # Attach new items
+        structure.line_items = new_items
+        await self.session.flush()
+
+    # ------------------------------------------------------------------
+    # Invoices
+    # ------------------------------------------------------------------
 
     async def create_invoice(self, invoice: StudentInvoice) -> StudentInvoice:
         """Persist a new student invoice record.

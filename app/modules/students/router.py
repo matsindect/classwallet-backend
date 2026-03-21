@@ -4,13 +4,17 @@ Exposes endpoints for listing students (with search, grade, and status
 filters), creating and updating individual students, bulk CSV import,
 and retrieving import history.  All endpoints require authentication and
 role-based authorisation.
+
+All responses use the uniform ``ApiResponse`` envelope via the helpers in
+``app.core.response``.
 """
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from app.core.di import get_student_service
-from app.core.pagination import clamp_pagination, paginate
+from app.core.pagination import clamp_pagination
 from app.core.policy import enforce
+from app.core.response import paginated_response, success_response
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.students.schemas import (
@@ -36,19 +40,8 @@ async def list_students(
 ):
     """List students with optional search, grade, and status filters.
 
-    Returns a paginated response. Requires the ``view_students`` permission.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: StudentService instance (injected).
-        search: Optional substring match on first/last name.
-        grade: Optional exact grade filter.
-        status: Optional exact status filter.
-        page: 1-based page number.
-        pageSize: Number of records per page.
-
-    Returns:
-        A paginated dict containing student data and pagination metadata.
+    Returns a paginated response wrapped in the uniform API envelope.
+    Requires the ``students.read`` permission.
     """
     enforce(current_user, "students.read")
     p, ps = clamp_pagination(page, pageSize)
@@ -60,11 +53,11 @@ async def list_students(
         grade=grade,
         status=status,
     )
-    data = [StudentResponse.model_validate(s) for s in items]
-    return paginate(data, total, p, ps)
+    data = [StudentResponse.model_validate(s).model_dump(by_alias=True) for s in items]
+    return paginated_response(data=data, page=p, page_size=ps, total_count=total)
 
 
-@router.post("", response_model=StudentResponse, status_code=201)
+@router.post("", status_code=201)
 async def create_student(
     body: StudentCreate,
     current_user: UserResponse = Depends(get_current_user),
@@ -72,27 +65,21 @@ async def create_student(
 ):
     """Create a new student record.
 
-    Requires the ``manage_students`` permission. The student is associated
+    Requires the ``students.create`` permission. The student is associated
     with the authenticated user's school.
-
-    Args:
-        body: Student creation payload.
-        current_user: The authenticated user (injected).
-        service: StudentService instance (injected).
-
-    Returns:
-        The created student as a ``StudentResponse``.
     """
     enforce(current_user, "students.create")
     student = await service.create_student(
         school_id=current_user.school_id,
-        data=body.model_dump(exclude_unset=True),
+        data=body,
         actor_id=current_user.id,
     )
-    return StudentResponse.model_validate(student)
+    return success_response(
+        data=StudentResponse.model_validate(student).model_dump(by_alias=True),
+    )
 
 
-@router.patch("/{student_id}", response_model=StudentResponse)
+@router.patch("/{student_id}")
 async def update_student(
     student_id: str,
     body: StudentUpdate,
@@ -101,31 +88,21 @@ async def update_student(
 ):
     """Partially update an existing student.
 
-    Requires the ``manage_students`` permission.
-
-    Args:
-        student_id: UUID of the student to update.
-        body: Fields to update (only set fields are applied).
-        current_user: The authenticated user (injected).
-        service: StudentService instance (injected).
-
-    Returns:
-        The updated student as a ``StudentResponse``.
-
-    Raises:
-        NotFoundError: If the student does not exist.
+    Requires the ``students.update`` permission.
     """
     enforce(current_user, "students.update")
     student = await service.update_student(
         student_id=student_id,
-        data=body.model_dump(exclude_unset=True),
+        data=body,
         actor_id=current_user.id,
         school_id=current_user.school_id,
     )
-    return StudentResponse.model_validate(student)
+    return success_response(
+        data=StudentResponse.model_validate(student).model_dump(by_alias=True),
+    )
 
 
-@router.post("/import", response_model=StudentImportResponse)
+@router.post("/import")
 async def import_students(
     file: UploadFile = File(...),
     current_user: UserResponse = Depends(get_current_user),
@@ -133,18 +110,7 @@ async def import_students(
 ):
     """Bulk-import students from an uploaded CSV file.
 
-    Expects a multipart file upload with CSV headers: ``first_name``,
-    ``last_name``, ``grade``, ``email``, ``phone``, ``guardian_name``,
-    ``guardian_email``, ``guardian_phone``. Requires the
-    ``manage_students`` permission.
-
-    Args:
-        file: The uploaded CSV file.
-        current_user: The authenticated user (injected).
-        service: StudentService instance (injected).
-
-    Returns:
-        A ``StudentImportResponse`` with row-level statistics.
+    Requires the ``students.import`` permission.
     """
     enforce(current_user, "students.import")
     content = await file.read()
@@ -154,25 +120,21 @@ async def import_students(
         file_name=file.filename or "import.csv",
         actor_id=current_user.id,
     )
-    return StudentImportResponse.model_validate(imp)
+    return success_response(
+        data=StudentImportResponse.from_import(imp).model_dump(by_alias=True),
+    )
 
 
-@router.get("/imports", response_model=list[StudentImportResponse])
+@router.get("/imports")
 async def list_imports(
     current_user: UserResponse = Depends(get_current_user),
     service: StudentService = Depends(get_student_service),
 ):
     """List all past CSV import operations for the current school.
 
-    Requires the ``manage_students`` permission.
-
-    Args:
-        current_user: The authenticated user (injected).
-        service: StudentService instance (injected).
-
-    Returns:
-        A list of ``StudentImportResponse`` objects, newest first.
+    Requires the ``students.read`` permission.
     """
     enforce(current_user, "students.read")
     imports = await service.list_imports(current_user.school_id)
-    return [StudentImportResponse.model_validate(i) for i in imports]
+    data = [StudentImportResponse.from_import(i).model_dump(by_alias=True) for i in imports]
+    return success_response(data=data)
