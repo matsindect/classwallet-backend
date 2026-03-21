@@ -91,6 +91,7 @@ app.add_middleware(RequestIdMiddleware)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_error_handler)
 
+
 # --- Health check (no prefix — used by Docker/Nginx) ---
 @app.get("/health", tags=["Health"])
 async def health_check():
