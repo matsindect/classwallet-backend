@@ -11,9 +11,9 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.cors import add_cors_middleware
 from app.core.errors import AppError, app_error_handler, unhandled_error_handler
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIdMiddleware
@@ -79,13 +79,7 @@ app = FastAPI(
 )
 
 # --- Middleware ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors_middleware(app)
 app.add_middleware(RequestIdMiddleware)
 
 # --- Exception handlers ---
