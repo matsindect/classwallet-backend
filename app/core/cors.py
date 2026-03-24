@@ -7,7 +7,6 @@ matching ``*.lovableproject.com`` or ``*.lovable.app``.
 import re
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -29,10 +28,10 @@ def is_origin_allowed(origin: str) -> bool:
 
 
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
-    """Middleware that checks origin against exact list + wildcard patterns.
+    """Single CORS middleware handling both exact origins and wildcard patterns.
 
-    For allowed origins, sets the standard CORS headers. Preflight
-    (OPTIONS) requests are handled with a 200 response.
+    Replaces FastAPI's CORSMiddleware entirely so there is no conflict
+    with middleware ordering.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -42,42 +41,36 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         if not origin:
             return await call_next(request)
 
-        # Check if origin is allowed
-        if not is_origin_allowed(origin):
-            return await call_next(request)
+        allowed = is_origin_allowed(origin)
 
-        # Handle preflight
+        # Handle preflight (OPTIONS)
         if request.method == "OPTIONS":
-            response = Response(status_code=200)
-        else:
-            response = await call_next(request)
+            if allowed:
+                response = Response(status_code=200)
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = (
+                    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                )
+                response.headers["Access-Control-Allow-Headers"] = (
+                    "Authorization, Content-Type, X-Request-ID, Accept"
+                )
+                response.headers["Access-Control-Max-Age"] = "600"
+                return response
+            # Disallowed origin preflight — return 200 with no CORS headers
+            # (browser will block the actual request)
+            return Response(status_code=200)
 
-        # Set CORS headers — mirror the specific origin (not *)
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Request-ID"
-        )
-        response.headers["Access-Control-Max-Age"] = "600"
+        # Actual request
+        response = await call_next(request)
+
+        if allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
 
         return response
 
 
 def add_cors_middleware(app: FastAPI) -> None:
-    """Add CORS middleware to the FastAPI app.
-
-    Uses exact origins from settings for standard CORSMiddleware,
-    and adds the dynamic middleware for wildcard subdomain matching.
-    """
-    # Dynamic middleware for wildcard patterns (runs first)
+    """Add the dynamic CORS middleware to the FastAPI app."""
     app.add_middleware(DynamicCORSMiddleware)
-
-    # Standard CORSMiddleware for exact origins (fallback)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
