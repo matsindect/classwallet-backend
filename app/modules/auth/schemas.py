@@ -17,6 +17,7 @@ from app.core.schemas import CamelModel
 ROLE_UI_PERMISSIONS: dict[str, list[str]] = {
     "SUPER_ADMIN": [
         "school.*",
+        "schools.*",
         "users.*",
         "students.*",
         "fees.*",
