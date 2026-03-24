@@ -18,7 +18,7 @@ from app.core.errors import AuthError
 from app.core.security import decode_access_token
 from app.modules.auth.schemas import UserResponse
 
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_token(
@@ -40,6 +40,8 @@ async def get_current_user_token(
         AuthError: If the token is invalid, expired, or the payload
             cannot be parsed.
     """
+    if not credentials:
+        raise AuthError(message="Missing authentication token")
     payload = decode_access_token(credentials.credentials)
     if not payload:
         raise AuthError(message="Invalid or expired token")
