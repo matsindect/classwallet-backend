@@ -50,6 +50,21 @@ class SchoolResponse(CamelModel):
         return v
 
 
+class SchoolCreate(CamelModel):
+    """Request body for creating/onboarding a new school."""
+
+    name: str
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    website: str | None = None
+    currency: str = "USD"
+    timezone: str = "UTC"
+
+
 class SchoolUpdate(CamelModel):
     """Request body for partially updating a school's profile.
 

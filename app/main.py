@@ -25,6 +25,7 @@ from app.modules.rbac.router import router as rbac_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.reports.router import router as reports_router
 from app.modules.school.router import router as school_router
+from app.modules.schools.router import router as schools_router
 from app.modules.students.router import router as students_router
 from app.modules.zb_bank.router import router as zb_bank_router
 from app.modules.zb_bank.scheduler import start_zb_bank_poller
@@ -105,6 +106,7 @@ api_router.include_router(reminders_router)
 api_router.include_router(reports_router)
 api_router.include_router(audit_router)
 api_router.include_router(rbac_router)
+api_router.include_router(schools_router)
 api_router.include_router(zb_bank_router)
 
 app.include_router(api_router)
