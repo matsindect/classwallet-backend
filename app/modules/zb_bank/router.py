@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.database import async_session_factory
 from app.core.pagination import clamp_pagination
 from app.core.response import paginated_response, success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.zb_bank.repository import ZBBankRepository
 from app.modules.zb_bank.schemas import (
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/zb-bank", tags=["ZB Bank"])
 
 @router.get("/transactions")
 async def list_transactions(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     is_matched: bool | None = Query(None),
     page: int | None = Query(None),
     pageSize: int | None = Query(None),  # noqa: N803
@@ -47,7 +47,7 @@ async def list_transactions(
 
 @router.get("/transactions/unmatched/summary")
 async def unmatched_summary(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
 ):
     """Get a summary of all unmatched bank transactions."""
     async with async_session_factory() as session:
@@ -68,7 +68,7 @@ async def unmatched_summary(
 
 @router.get("/reconciliation-runs")
 async def list_reconciliation_runs(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     limit: int = Query(20, le=100),
 ):
     """List recent reconciliation runs."""

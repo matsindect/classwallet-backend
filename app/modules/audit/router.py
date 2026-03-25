@@ -15,7 +15,7 @@ from app.core.policy import enforce
 from app.core.response import paginated_response
 from app.modules.audit.schemas import AuditLogResponse
 from app.modules.audit.service import AuditService
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 @router.get("/logs")
 async def list_logs(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: AuditService = Depends(get_audit_service),
     from_date: datetime | None = Query(None, alias="from"),
     to_date: datetime | None = Query(None, alias="to"),

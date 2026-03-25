@@ -15,7 +15,7 @@ from app.core.di import get_student_service
 from app.core.pagination import clamp_pagination
 from app.core.policy import enforce
 from app.core.response import paginated_response, success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.students.schemas import (
     StudentCreate,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/students", tags=["Students"])
 
 @router.get("")
 async def list_students(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: StudentService = Depends(get_student_service),
     search: str | None = None,
     grade: str | None = None,
@@ -60,7 +60,7 @@ async def list_students(
 @router.post("", status_code=201)
 async def create_student(
     body: StudentCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: StudentService = Depends(get_student_service),
 ):
     """Create a new student record.
@@ -83,7 +83,7 @@ async def create_student(
 async def update_student(
     student_id: str,
     body: StudentUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: StudentService = Depends(get_student_service),
 ):
     """Partially update an existing student.
@@ -105,7 +105,7 @@ async def update_student(
 @router.post("/import")
 async def import_students(
     file: UploadFile = File(...),
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: StudentService = Depends(get_student_service),
 ):
     """Bulk-import students from an uploaded CSV file.
@@ -127,7 +127,7 @@ async def import_students(
 
 @router.get("/imports")
 async def list_imports(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: StudentService = Depends(get_student_service),
 ):
     """List all past CSV import operations for the current school.

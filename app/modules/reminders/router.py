@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends
 from app.core.di import get_reminder_service
 from app.core.policy import enforce
 from app.core.response import success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.reminders.schemas import (
     ReminderConfigCreate,
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/reminders", tags=["Reminders"])
 
 @router.get("/configs")
 async def list_configs(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReminderService = Depends(get_reminder_service),
 ):
     """List all reminder configurations for the current user's school.
@@ -48,7 +48,7 @@ async def list_configs(
 @router.post("/configs", status_code=201)
 async def create_config(
     body: ReminderConfigCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReminderService = Depends(get_reminder_service),
 ):
     """Create a new reminder configuration.
@@ -69,7 +69,7 @@ async def create_config(
 async def update_config(
     config_id: str,
     body: ReminderConfigUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReminderService = Depends(get_reminder_service),
 ):
     """Partially update an existing reminder configuration.
@@ -89,7 +89,7 @@ async def update_config(
 
 @router.get("/history")
 async def list_history(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReminderService = Depends(get_reminder_service),
 ):
     """List all reminder dispatch history for the current user's school.

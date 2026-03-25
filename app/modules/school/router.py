@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from app.core.di import get_auth_service, get_school_service
 from app.core.policy import enforce
 from app.core.response import success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.auth.service import AuthService
 from app.modules.school.schemas import (
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/school", tags=["School"])
 
 @router.get("")
 async def get_school(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: SchoolService = Depends(get_school_service),
 ):
     """Retrieve the current user's school profile."""
@@ -43,7 +43,7 @@ async def get_school(
 @router.patch("")
 async def update_school(
     body: SchoolUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: SchoolService = Depends(get_school_service),
 ):
     """Update the current user's school profile.
@@ -70,7 +70,7 @@ async def update_school(
 
 @router.get("/users")
 async def list_users(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """List all users belonging to the current school.
@@ -86,7 +86,7 @@ async def list_users(
 @router.post("/users", status_code=201)
 async def create_user(
     body: SchoolUserCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Create a new user within the current school.
@@ -111,7 +111,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     body: SchoolUserUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Update an existing school user's profile.

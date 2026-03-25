@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from app.core.di import get_report_service
 from app.core.policy import enforce
 from app.core.response import error_response, success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.fees.schemas import StudentInvoiceResponse
 from app.modules.reports.service import ReportService
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 
 @router.get("/overview")
 async def get_overview(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReportService = Depends(get_report_service),
     from_date: datetime = Query(..., alias="from"),
     to_date: datetime = Query(..., alias="to"),
@@ -41,7 +41,7 @@ async def get_overview(
 
 @router.get("/outstanding")
 async def get_outstanding(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReportService = Depends(get_report_service),
     from_date: datetime = Query(..., alias="from"),
     to_date: datetime = Query(..., alias="to"),
@@ -59,7 +59,7 @@ async def get_outstanding(
 
 @router.get("/export")
 async def export_report(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: ReportService = Depends(get_report_service),
     reportType: str = Query(...),  # noqa: N803
     from_date: datetime = Query(..., alias="from"),
