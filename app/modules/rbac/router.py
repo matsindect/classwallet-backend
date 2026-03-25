@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.di import get_rbac_service
 from app.core.policy import enforce
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.rbac.schemas import (
     PermissionCreate,
@@ -41,7 +41,7 @@ def _role_to_response(role) -> RoleResponse:
 
 @router.get("", response_model=list[RoleResponse])
 async def list_roles(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """List all roles available to the current school.
@@ -57,7 +57,7 @@ async def list_roles(
 @router.post("", response_model=RoleResponse, status_code=201)
 async def create_role(
     body: RoleCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """Create a new school-scoped role.
@@ -77,7 +77,7 @@ async def create_role(
 
 @router.get("/permissions", response_model=list[PermissionResponse])
 async def list_permissions(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """List all available permissions.
@@ -92,7 +92,7 @@ async def list_permissions(
 @router.post("/permissions", response_model=PermissionResponse, status_code=201)
 async def create_permission(
     body: PermissionCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """Create a new permission.
@@ -111,7 +111,7 @@ async def create_permission(
 @router.get("/{role_id}", response_model=RoleResponse)
 async def get_role(
     role_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """Get a single role with its permissions.
@@ -127,7 +127,7 @@ async def get_role(
 async def update_role(
     role_id: str,
     body: RoleUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """Update a role's name, description, or permissions.
@@ -149,7 +149,7 @@ async def update_role(
 @router.delete("/{role_id}", status_code=204)
 async def delete_role(
     role_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: RBACService = Depends(get_rbac_service),
 ):
     """Delete a non-system role.

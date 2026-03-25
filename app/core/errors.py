@@ -96,7 +96,19 @@ async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
 
 
 async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-    """Catch-all for unhandled exceptions — returns INTERNAL_ERROR."""
+    """Catch-all for unhandled exceptions — logs traceback, returns INTERNAL_ERROR."""
+    import traceback
+
+    from app.core.logging import get_logger
+
+    logger = get_logger("error_handler")
+    logger.error(
+        "unhandled_exception",
+        error=str(exc),
+        traceback=traceback.format_exc(),
+        path=str(_request.url),
+        method=_request.method,
+    )
     return JSONResponse(
         status_code=500,
         content=error_response(

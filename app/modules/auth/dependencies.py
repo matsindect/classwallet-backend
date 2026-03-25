@@ -14,7 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.core.errors import AuthError
+from app.core.errors import AuthError, ValidationError
 from app.core.security import decode_access_token
 from app.modules.auth.schemas import UserResponse
 
@@ -89,3 +89,51 @@ async def get_current_user(
     user = await service.get_current_user(token_data["user_id"], token_data["tv"])
     request.state.current_user = user
     return UserResponse.from_user(user)
+
+
+async def require_school_user(
+    request: Request,
+    current_user: UserResponse = Depends(get_current_user),
+) -> UserResponse:
+    """Dependency that ensures a school context is available.
+
+    For regular users, ``school_id`` comes from their account.
+    For SUPER_ADMIN users (who have no school), it can be supplied via:
+    - Query parameter: ``?schoolId=xxx``
+    - JSON body field: ``{"schoolId": "xxx"}``
+
+    When a SUPER_ADMIN provides a schoolId, it is set on the user
+    response so downstream code can use ``current_user.school_id``
+    uniformly.
+
+    Raises:
+        ValidationError: If no school context can be resolved.
+    """
+    if current_user.school_id:
+        return current_user
+
+    # SUPER_ADMIN or platform user — try to resolve school from request
+    school_id = None
+
+    # 1. Check query params
+    school_id = request.query_params.get("schoolId")
+
+    # 2. Check JSON body (only for methods that have a body)
+    if not school_id and request.method in ("POST", "PUT", "PATCH"):
+        try:
+            body = await request.json()
+            school_id = body.get("schoolId") or body.get("school_id")
+        except Exception:
+            pass
+
+    if school_id:
+        # Create a copy with the supplied school_id
+        user_data = current_user.model_dump()
+        user_data["school_id"] = school_id
+        return UserResponse(**user_data)
+
+    raise ValidationError(
+        message="This action requires a school context. "
+        "Your account is not assigned to a school. "
+        "Provide schoolId as a query parameter or in the request body."
+    )

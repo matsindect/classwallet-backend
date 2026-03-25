@@ -13,7 +13,7 @@ from app.core.di import get_payment_service
 from app.core.pagination import clamp_pagination
 from app.core.policy import enforce
 from app.core.response import paginated_response, success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.payments.schemas import PaymentResponse, ReconciliationSummary
 from app.modules.payments.service import PaymentService
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 
 @router.get("")
 async def list_payments(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: PaymentService = Depends(get_payment_service),
     status: str | None = None,
     from_date: datetime | None = Query(None, alias="from"),
@@ -54,7 +54,7 @@ async def list_payments(
 
 @router.get("/reconciliation")
 async def get_reconciliation(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: PaymentService = Depends(get_payment_service),
     from_date: datetime = Query(..., alias="from"),
     to_date: datetime = Query(..., alias="to"),
@@ -77,7 +77,7 @@ async def get_reconciliation(
 @router.get("/{payment_id}")
 async def get_payment(
     payment_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: PaymentService = Depends(get_payment_service),
 ):
     """Retrieve a single payment by its ID.

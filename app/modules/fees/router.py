@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.di import get_fee_service
 from app.core.policy import enforce
 from app.core.response import success_response
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_school_user
 from app.modules.auth.schemas import UserResponse
 from app.modules.fees.schemas import FeeStructureCreate, FeeStructureUpdate
 from app.modules.fees.service import FeeService
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/fees", tags=["Fees"])
 
 @router.get("/structures")
 async def list_structures(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """List all fee structures for the current user's school.
@@ -44,7 +44,7 @@ async def list_structures(
 @router.post("/structures", status_code=201)
 async def create_structure(
     body: FeeStructureCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """Create a new fee structure for the current user's school.
@@ -73,7 +73,7 @@ async def create_structure(
 async def update_structure(
     structure_id: str,
     body: FeeStructureUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """Partially update an existing fee structure.
@@ -108,7 +108,7 @@ async def update_structure(
 @router.post("/structures/{structure_id}/publish")
 async def publish_structure(
     structure_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """Publish a fee structure, making it available for invoice generation.
@@ -139,7 +139,7 @@ async def publish_structure(
 @router.post("/structures/{structure_id}/generate-invoices")
 async def generate_invoices(
     structure_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
 ):
     """Generate invoices for all eligible students from a fee structure.
@@ -174,7 +174,7 @@ async def generate_invoices(
 # or main.py registration may be needed to serve GET /invoices directly.
 @router.get("/invoices")
 async def list_invoices(
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: UserResponse = Depends(require_school_user),
     service: FeeService = Depends(get_fee_service),
     studentId: str | None = Query(None),  # noqa: N803
 ):
